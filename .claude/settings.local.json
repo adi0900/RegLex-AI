@@ -3,7 +3,12 @@
     "allow": [
       "Bash(git init:*)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(if exist \"Backend\\.git\" rmdir /s /q \"Backend\\.git\")",
+      "Bash(if exist \"Frontend\\.git\" rmdir /s /q \"Frontend\\.git\")"
     ],
     "deny": [],
     "ask": []
