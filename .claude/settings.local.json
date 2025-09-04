@@ -8,7 +8,15 @@
       "Bash(git push:*)",
       "Bash(git rm:*)",
       "Bash(if exist \"Backend\\.git\" rmdir /s /q \"Backend\\.git\")",
-      "Bash(if exist \"Frontend\\.git\" rmdir /s /q \"Frontend\\.git\")"
+      "Bash(if exist \"Frontend\\.git\" rmdir /s /q \"Frontend\\.git\")",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(node:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

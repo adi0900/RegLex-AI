@@ -1,3 +1,11 @@
+import sys
+import os
+from pathlib import Path
+
+# Add the backend root to Python path
+backend_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_root))
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from src.extraction.extract_pipeline import _extract_text_from_pdf
@@ -104,4 +112,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("run_pipeline:app", host="127.0.0.1", port=8000, reload=True)

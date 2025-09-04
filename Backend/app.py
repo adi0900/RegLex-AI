@@ -45,7 +45,7 @@ try:
         "title": "SEBI Compliance Backend API",
         "description": "FastAPI backend for document compliance checking and analysis",
         "version": "1.0.0",
-        "host": "0.0.0.0",
+        "host": "127.0.0.1",
         "port": 8000,
         "reload": True,
         "access_log": True,
