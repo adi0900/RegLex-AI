@@ -243,9 +243,7 @@ export class FastAPIService {
 
       const response = await retryFastapiRequest(() =>
         fastapiClient.post<FastAPIUploadResponse>('/upload-pdf/', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          // Don't set Content-Type manually - let browser set multipart boundary
           timeout: FASTAPI_TIMEOUT,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total && onProgress) {

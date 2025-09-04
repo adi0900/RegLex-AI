@@ -40,9 +40,34 @@ app.add_middleware(
 @app.post("/upload-pdf/")
 async def run_backend(file: UploadFile = File(...), lang: str = Form("en")):
     try:
+        print(f"=== UPLOAD REQUEST RECEIVED ===")
+        print(f"File object: {file}")
+        print(f"Lang parameter: {lang}")
+        
+        # Validate file
+        if not file:
+            print("ERROR: No file object provided")
+            raise HTTPException(status_code=422, detail="No file provided")
+        
+        if not hasattr(file, 'filename') or not file.filename:
+            print("ERROR: File has no filename")
+            raise HTTPException(status_code=422, detail="File missing filename")
+            
+        print(f"File uploaded: {file.filename} (content-type: {getattr(file, 'content_type', 'unknown')})")
+        
+        # Check file extension
+        if not file.filename.lower().endswith('.pdf'):
+            print(f"ERROR: Invalid file type. Expected PDF, got: {file.filename}")
+            raise HTTPException(status_code=422, detail=f"Only PDF files are supported. Received: {file.filename}")
+            
         # Read file content
-        print("File uploaded successfully")
         content = await file.read()
+        
+        if not content:
+            print("ERROR: File content is empty")
+            raise HTTPException(status_code=422, detail="Empty file received")
+            
+        print(f"File content read successfully: {len(content)} bytes")
         text = _extract_text_from_pdf(content)
         summary = generate_summary(text, lang)
         print(f"Summary type: {type(summary)}")
@@ -92,14 +117,21 @@ async def run_backend(file: UploadFile = File(...), lang: str = Form("en")):
 
         return jsonable_encoder(results, custom_encoder=custom_encoders)
 
+    except HTTPException as he:
+        # Log HTTP exceptions for debugging but re-raise as-is
+        print(f"HTTP Exception {he.status_code}: {he.detail}")
+        raise
     except Exception as e:
-        # Print detailed error to console
-        print(f"Error: {str(e)}")
+        # Print detailed error to console for debugging
+        error_msg = str(e)
+        print(f"Unexpected error during document processing: {error_msg}")
+        print(f"File: {getattr(file, 'filename', 'Unknown') if file else 'None'}")
         print(traceback.format_exc())
-        # Optionally log the error or take other actions
+        
+        # Return user-friendly error
         raise HTTPException(
             status_code=500,
-            detail=f"Processing error: {str(e)}"
+            detail=f"Processing error: {error_msg}"
         )
 
 @app.get("/")

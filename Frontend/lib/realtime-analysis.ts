@@ -142,11 +142,11 @@ export class RealTimeAnalysisService {
   private static async processDocument(sessionId: string, file: File, language: string) {
     try {
       // Update progress during upload
-      const progressCallback = (progress: { loaded: number; total: number; percentage: number }) => {
+      const progressCallback = (percentage: number) => {
         this.updateSession(sessionId, {
           status: 'uploading',
-          progress: Math.min(ANALYSIS_STAGES.UPLOADING.progress + (progress.percentage * 0.15), 25),
-          currentStage: `${ANALYSIS_STAGES.UPLOADING.name} ${progress.percentage}%`
+          progress: Math.min(ANALYSIS_STAGES.UPLOADING.progress + (percentage * 0.15), 25),
+          currentStage: `${ANALYSIS_STAGES.UPLOADING.name} ${percentage}%`
         })
       }
 
