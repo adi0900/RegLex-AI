@@ -35,36 +35,45 @@ export function middleware(request: NextRequest) {
 
   // Authentication check for protected routes
   const protectedRoutes = ['/dashboard']
-  const isProtectedRoute = protectedRoutes.some(route => 
+  const isProtectedRoute = protectedRoutes.some(route =>
     request.nextUrl.pathname.startsWith(route)
   )
 
   if (isProtectedRoute) {
-    // Check for auth cookie or header
-    const authToken = request.cookies.get('authToken')?.value || 
-                     request.headers.get('authorization')?.replace('Bearer ', '')
+    // Skip authentication in development mode for easier testing
+    const isDevelopment = process.env.NODE_ENV === 'development' ||
+                         process.env.NEXT_PUBLIC_SKIP_AUTH === 'true'
 
-    if (!authToken) {
-      // Redirect to login if no auth token
-      const loginUrl = new URL('/login', request.url)
-      loginUrl.searchParams.set('redirect', request.nextUrl.pathname)
-      return NextResponse.redirect(loginUrl)
-    }
+    if (!isDevelopment) {
+      // Check for auth cookie or header
+      const authToken = request.cookies.get('authToken')?.value ||
+                       request.headers.get('authorization')?.replace('Bearer ', '')
 
-    // Validate token format (basic check)
-    // Allow demo tokens or tokens that are reasonably long
-    if (authToken && (authToken.trim().length < 15 || authToken.trim() === '')) {
-      // Invalid token format - too short to be legitimate or empty
-      const loginUrl = new URL('/login', request.url)
-      loginUrl.searchParams.set('error', 'invalid_token')
-      return NextResponse.redirect(loginUrl)
-    }
+      if (!authToken) {
+        // Redirect to login if no auth token
+        const loginUrl = new URL('/login', request.url)
+        loginUrl.searchParams.set('redirect', request.nextUrl.pathname)
+        return NextResponse.redirect(loginUrl)
+      }
 
-    // Additional validation: check for common invalid token patterns
-    if (authToken && (authToken === 'undefined' || authToken === 'null' || authToken === 'false')) {
-      const loginUrl = new URL('/login', request.url)
-      loginUrl.searchParams.set('error', 'invalid_token')
-      return NextResponse.redirect(loginUrl)
+      // Validate token format (basic check)
+      // Allow demo tokens or tokens that are reasonably long
+      if (authToken && (authToken.trim().length < 15 || authToken.trim() === '')) {
+        // Invalid token format - too short to be legitimate or empty
+        const loginUrl = new URL('/login', request.url)
+        loginUrl.searchParams.set('error', 'invalid_token')
+        return NextResponse.redirect(loginUrl)
+      }
+
+      // Additional validation: check for common invalid token patterns
+      if (authToken && (authToken === 'undefined' || authToken === 'null' || authToken === 'false')) {
+        const loginUrl = new URL('/login', request.url)
+        loginUrl.searchParams.set('error', 'invalid_token')
+        return NextResponse.redirect(loginUrl)
+      }
+    } else {
+      // Development mode: allow access to dashboard without authentication
+      console.log('🔓 Development mode: Skipping authentication for dashboard access')
     }
   }
 

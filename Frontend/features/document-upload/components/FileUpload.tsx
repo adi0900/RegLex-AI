@@ -58,12 +58,16 @@ export function FileUpload({
 
       // Handle accepted files
       if (acceptedFiles.length > 0) {
-        const newFiles = acceptedFiles.map((file) => ({
-          ...file,
-          id: Math.random().toString(36).substr(2, 9),
-          status: 'uploading' as const,
-          progress: 0,
-        }))
+        const newFiles = acceptedFiles.map((file) => {
+          // Preserve the original File object and add custom properties
+          const fileWithPreview = Object.assign(file, {
+            id: Math.random().toString(36).substr(2, 9),
+            status: 'uploading' as const,
+            progress: 0,
+          }) as FileWithPreview;
+
+          return fileWithPreview;
+        });
 
         setFiles((prev) => [...prev, ...newFiles])
         onFileSelect?.(acceptedFiles)
@@ -149,7 +153,21 @@ export function FileUpload({
               if (allCompleted && hasCompleted) {
                 const completedFile = currentFiles.find(f => f.id === fileId)
                 if (completedFile?.analysisResult) {
-                  setTimeout(() => onUploadComplete?.(completedFile.analysisResult), 1000)
+                  console.log('📤 FileUpload: Preparing upload result:', {
+                    fileName: completedFile.name,
+                    fileSize: completedFile.size,
+                    hasAnalysisResult: !!completedFile.analysisResult
+                  })
+
+                  // Pass both the analysis result and the original file object
+                  const uploadResult = {
+                    analysisResult: completedFile.analysisResult,
+                    file: completedFile, // Include the original FileWithPreview object
+                    success: true
+                  }
+
+                  console.log('📤 FileUpload: Sending upload result to callback')
+                  setTimeout(() => onUploadComplete?.(uploadResult), 1000)
                 }
               }
               return currentFiles

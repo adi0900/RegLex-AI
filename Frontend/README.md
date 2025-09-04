@@ -59,6 +59,36 @@ The system processes legal documents through a multi-stage pipeline:
 - **Google Cloud Platform** account with BigQuery and Storage access
 - **API keys** for chosen LLM providers (Claude, Gemini, OpenAI, Mistral)
 
+## 🔐 Authentication & Security
+
+### Protected Routes
+- **Dashboard Access**: `/dashboard/*` routes require authentication
+- **Middleware Protection**: Automatic redirect to login for unauthenticated users
+- **Demo Credentials**: Available for testing and development
+
+### Login Process
+1. Navigate to the login page (`/login`)
+2. Use the following demo credentials:
+   - **Email**: `Test-01@gmail.com`
+   - **Password**: `12345678`
+3. Upon successful login, you'll be redirected to `/dashboard`
+4. The authentication token is stored as an HTTP cookie
+
+### Security Features
+- **Rate Limiting**: 100 requests per hour per IP
+- **CSRF Protection**: Tokens required for state-changing operations
+- **Content-Type Validation**: Strict validation for API requests
+- **Security Headers**: Comprehensive security headers applied to all responses
+
+### Development Mode
+For easier development and testing, you can skip authentication by setting:
+```bash
+# In .env.local file
+NEXT_PUBLIC_SKIP_AUTH=true
+```
+
+When `NEXT_PUBLIC_SKIP_AUTH=true` is set, the middleware will allow direct access to `/dashboard` without requiring login.
+
 ## 🔧 Installation
 
 ### Backend Setup
@@ -128,10 +158,18 @@ pnpm dev
 Once both Backend and Frontend are running:
 
 1. **Access the application**: http://localhost:3000
-2. **Upload documents** using the drag-and-drop interface
-3. **View compliance results** in the interactive dashboard
-4. **Analyze risk assessments** with visual charts
-5. **Export reports** for further analysis
+
+2. **Login to Dashboard**:
+   - Click "Start Free Analysis" or navigate to `/login`
+   - Use demo credentials:
+     - **Email**: `Test-01@gmail.com`
+     - **Password**: `12345678`
+   - After login (7-second delay), you'll be redirected to the dashboard
+
+3. **Upload documents** using the drag-and-drop interface
+4. **View compliance results** in the interactive dashboard
+5. **Analyze risk assessments** with visual charts
+6. **Export reports** for further analysis
 
 ### Dashboard Features
 
@@ -277,18 +315,24 @@ SEBI-HACK/
 └── my-app/                           # Empty directory (cleanup needed)
 ```
 
-## Recent Enhancements (September 2025)
+## Recent Enhancements (October 2025)
 
 ### Frontend Improvements
 - **Enhanced Authentication**: Improved login/signup flow with better validation and error handling
-- **Responsive Navigation**: Updated navbar with better mobile support
+- **Responsive Navigation**: Updated navbar with better mobile support and accessibility
 - **Dashboard Updates**: Enhanced statistics display and real-time processing updates
 - **UI/UX Refinements**: Improved form handling and user feedback throughout the application
+- **Performance Optimization**: Code splitting, lazy loading, and bundle size optimization
+- **Export Functionality**: Comprehensive PDF, JSON, and CSV export capabilities
+- **Error Boundaries**: Global error handling with graceful fallbacks
 
 ### Backend Improvements
-- **API Performance**: Optimized endpoints for faster response times
-- **Error Handling**: Enhanced error reporting and logging
+- **API Performance**: Optimized endpoints for faster response times and reduced latency
+- **Error Handling**: Enhanced error reporting and logging with detailed error messages
 - **Security**: Improved authentication and authorization mechanisms
+- **Health Monitoring**: Real-time backend status monitoring and connectivity checks
+- **CORS Configuration**: Seamless integration with frontend applications
+- **Multi-LLM Support**: Robust fallback mechanisms and provider switching
 
 ## 🛡️ Security Notes
 

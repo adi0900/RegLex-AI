@@ -4,10 +4,11 @@ export const APP_CONFIG = {
   USE_MOCK_API: process.env.NEXT_PUBLIC_USE_MOCK_API === 'true',
   
   // API Configuration
-  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8002',
-  API_TIMEOUT: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000'),
-  API_RETRY_ATTEMPTS: parseInt(process.env.NEXT_PUBLIC_API_RETRY_ATTEMPTS || '3'),
-  API_RETRY_DELAY: parseInt(process.env.NEXT_PUBLIC_API_RETRY_DELAY || '1000'),
+  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000',
+  API_TIMEOUT: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '15000'),
+  API_TIMEOUT_UPLOAD: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT_UPLOAD || '600000'), // 10 minutes for uploads
+  API_RETRY_ATTEMPTS: parseInt(process.env.NEXT_PUBLIC_API_RETRY_ATTEMPTS || '2'),
+  API_RETRY_DELAY: parseInt(process.env.NEXT_PUBLIC_API_RETRY_DELAY || '2000'),
   
   // Feature flags
   FEATURES: {
@@ -48,6 +49,19 @@ export const getApiConfig = () => {
     },
     retries: APP_CONFIG.API_RETRY_ATTEMPTS,
     retryDelay: APP_CONFIG.API_RETRY_DELAY
+  }
+}
+
+// Specific configuration for upload operations with longer timeouts
+export const getUploadApiConfig = () => {
+  return {
+    baseURL: APP_CONFIG.USE_MOCK_API ? undefined : APP_CONFIG.API_URL,
+    timeout: APP_CONFIG.API_TIMEOUT_UPLOAD,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    retries: 1, // Fewer retries for uploads
+    retryDelay: APP_CONFIG.API_RETRY_DELAY * 2
   }
 }
 

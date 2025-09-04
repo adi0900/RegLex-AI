@@ -7,7 +7,7 @@ import { ErrorHandler } from './error-handler'
 // FastAPI Backend Configuration with auto-detection
 const FASTAPI_CONFIG = {
   baseURL: 'http://127.0.0.1:8000',
-  timeout: 300000, // 5 minutes for document processing
+  timeout: 600000, // 10 minutes for document processing
   headers: {
     'Accept': 'application/json',
   }
@@ -16,9 +16,9 @@ const FASTAPI_CONFIG = {
 // Connection retry configuration
 const RETRY_CONFIG = {
   maxRetries: 3,
-  retryDelay: 1000, // Start with 1 second
-  backoffMultiplier: 2, // Exponential backoff
-  healthCheckTimeout: 5000 // 5 seconds for health checks
+  retryDelay: 2000, // Start with 2 seconds
+  backoffMultiplier: 1.5, // Reduced backoff multiplier
+  healthCheckTimeout: 15000 // 15 seconds for health checks
 }
 
 // Create FastAPI client instance
@@ -222,6 +222,45 @@ export class FastAPIService {
   }
 
   /**
+   * Make a GET request to the FastAPI backend
+   */
+  static async get(endpoint: string): Promise<any> {
+    try {
+      const response = await fastAPIClient.get(endpoint)
+      return response
+    } catch (error) {
+      console.error(`❌ FastAPI GET Error for ${endpoint}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Make a POST request to the FastAPI backend
+   */
+  static async post(endpoint: string, data?: any): Promise<any> {
+    try {
+      const response = await fastAPIClient.post(endpoint, data)
+      return response
+    } catch (error) {
+      console.error(`❌ FastAPI POST Error for ${endpoint}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Make a PUT request to the FastAPI backend
+   */
+  static async put(endpoint: string, data?: any): Promise<any> {
+    try {
+      const response = await fastAPIClient.put(endpoint, data)
+      return response
+    } catch (error) {
+      console.error(`❌ FastAPI PUT Error for ${endpoint}:`, error)
+      throw error
+    }
+  }
+
+  /**
    * Upload document to FastAPI backend for processing with retry logic
    */
   static async uploadDocument(
@@ -229,16 +268,42 @@ export class FastAPIService {
     onProgress?: (progress: UploadProgress) => void
   ): Promise<FastAPIResponse> {
     const uploadOperation = async (): Promise<FastAPIResponse> => {
+      // Validate file before upload
+      if (!request.file) {
+        throw new Error('No file provided for upload')
+      }
+
+      if (request.file.size === 0) {
+        throw new Error('File is empty')
+      }
+
+      // Ensure file has proper name and type
+      const fileName = request.file.name || 'uploaded_file'
+      const fileToUpload = new File([request.file], fileName, { type: request.file.type || 'application/octet-stream' })
+
       const formData = new FormData()
-      formData.append('file', request.file)
+      formData.append('file', fileToUpload)
       formData.append('lang', request.lang || 'en')
 
       console.log(`📄 Uploading document: ${request.file.name} (${request.file.size} bytes)`)
+      console.log('📋 FormData contents:', {
+        fileName: request.file.name,
+        fileSize: request.file.size,
+        fileType: request.file.type,
+        language: request.lang || 'en'
+      })
+
+      // Debug FormData entries
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`📁 FormData - ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`)
+        } else {
+          console.log(`📝 FormData - ${key}: ${value}`)
+        }
+      }
 
       const response = await fastAPIClient.post<FastAPIResponse>('/upload-pdf/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        // Don't set Content-Type manually - let browser set multipart/form-data with boundary
         timeout: FASTAPI_CONFIG.timeout,
         onUploadProgress: (progressEvent: AxiosProgressEvent) => {
           if (progressEvent.total && onProgress) {
@@ -250,6 +315,8 @@ export class FastAPIService {
             onProgress(progress)
           }
         },
+        // Ensure proper request configuration
+        validateStatus: (status) => status < 500, // Accept all status codes below 500
       })
 
       console.log('✅ Document processed successfully:', {
@@ -271,7 +338,28 @@ export class FastAPIService {
       )
     } catch (error) {
       console.error('❌ Document upload failed after all retries:', error)
-      
+
+      // Enhanced error logging for debugging
+      if (error instanceof AxiosError) {
+        console.error('🔍 Detailed error info:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          headers: error.response?.headers,
+          url: error.config?.url,
+          method: error.config?.method
+        })
+
+        // Handle 422 Unprocessable Entity specifically
+        if (error.response?.status === 422) {
+          console.error('🚨 422 Error - Validation failed. Check request data format.')
+          console.error('📋 Expected format:', {
+            file: 'UploadFile (required)',
+            lang: 'str (optional, defaults to "English")'
+          })
+        }
+      }
+
       // Use enhanced error handling
       const appError = ErrorHandler.handleUploadError(error, request.file.name)
       throw new Error(ErrorHandler.getUserMessage(appError))

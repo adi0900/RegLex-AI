@@ -1,9 +1,21 @@
-// lib/realtime-analysis.ts
-import { FastAPIService } from './fastapi-services';
-import { ErrorHandler } from './error-handler';
+/**
+ * Real-Time Analysis Service
+ * Provides real-time document analysis with progress tracking and session management
+ *
+ * Features:
+ * - Real-time progress updates during document processing
+ * - Session-based analysis tracking
+ * - Automatic fallback to mock data when backend unavailable
+ * - Comprehensive error handling and recovery
+ * - Type-safe data transformation and validation
+ */
 
-// Analysis session status types
-type AnalysisStatus = 'uploading' | 'processing' | 'analyzing' | 'completed' | 'error';
+import { FastAPIService } from './fastapi-services'
+import type { FastAPIResponse } from './fastapi-client'
+import { ErrorHandler } from './error-handler'
+
+// Analysis session status types with clear progression
+type AnalysisStatus = 'uploading' | 'processing' | 'analyzing' | 'completed' | 'error'
 
 // Analysis stages configuration
 const ANALYSIS_STAGES = {
@@ -14,64 +26,214 @@ const ANALYSIS_STAGES = {
   COMPLETED: { name: 'Analysis complete', progress: 100 }
 };
 
-// Analysis session interface
-interface AnalysisSession {
-  id: string;
-  fileName: string;
-  fileSize: number;
-  startTime: Date;
-  status: AnalysisStatus;
-  progress: number;
-  currentStage: string;
-  result?: ProcessedDocument;
-  error?: string;
+// Analysis session interface with enhanced type safety
+export interface AnalysisSession {
+  id: string
+  fileName: string
+  fileSize: number
+  startTime: Date
+  status: AnalysisStatus
+  progress: number // 0-100
+  currentStage: string
+  result?: ProcessedDocument
+  error?: string
 }
 
-// Processed document interface
-interface ProcessedDocument {
-  id: string;
-  fileName: string;
-  fileSize: string;
-  uploadedAt: string;
-  processedAt: string;
-  summary: string;
-  overallScore: number;
-  riskLevel: 'low' | 'medium' | 'high';
-  totalClauses: number;
-  compliantClauses: number;
-  nonCompliantClauses: number;
-  highRiskClauses: number;
-  timelines: Record<string, any>;
-  clauses: any[];
-  complianceResults: any[];
-  complianceAreas: any[];
-  keyFindings: any[];
-  actionItems: any[];
-  clauseAnalysis: any[];
+// Processed document interface with detailed type definitions
+export interface ProcessedDocument {
+  id: string
+  fileName: string
+  fileSize: string
+  uploadedAt: string
+  processedAt: string
+  summary: string
+  overallScore: number // 0-100
+  riskLevel: 'low' | 'medium' | 'high'
+  totalClauses: number
+  compliantClauses: number
+  nonCompliantClauses: number
+  highRiskClauses: number
+  status?: 'uploading' | 'processing' | 'analyzing' | 'completed' | 'error'
+  timelines: Record<string, TimelineEntry>
+  clauses: Clause[]
+  complianceResults: ComplianceResult[]
+  complianceAreas: ComplianceArea[]
+  keyFindings: KeyFinding[]
+  actionItems: ActionItem[]
+  clauseAnalysis: ClauseAnalysis[]
 }
 
-// FastAPI response type
-type FastAPIResponse = {
-  summary: string;
-  timelines: Record<string, any>;
-  clauses: any[];
-  compliance_results: any;
-  compliance_score?: number;
-  risk_level?: string;
-  uploaded_at?: string;
-  processed_at?: string;
-};
+// Supporting interfaces for better type safety
+interface TimelineEntry {
+  start?: string
+  end?: string
+  description?: string
+}
+
+interface Clause {
+  id?: string
+  text?: string
+  text_en?: string
+  [key: string]: any
+}
+
+interface ComplianceResult {
+  clause_id?: string
+  is_compliant: boolean
+  confidence_score: number
+  matched_rules?: MatchedRule[]
+  risk_assessment?: RiskAssessment
+  explanation?: string
+}
+
+interface MatchedRule {
+  rule_text: string
+  score: number
+  metadata: Record<string, any>
+  is_relevant: boolean
+  reason: string
+}
+
+interface RiskAssessment {
+  severity: 'Low' | 'Medium' | 'High' | 'None'
+  category: 'Legal' | 'Financial' | 'Operational' | 'General'
+  score: number
+  impact: string
+  mitigation: string
+}
+
+interface ComplianceArea {
+  area: string
+  total: number
+  compliant: number
+  nonCompliant: number
+  score: number
+}
+
+interface KeyFinding {
+  type: 'success' | 'warning' | 'error'
+  title: string
+  description: string
+  priority: 'low' | 'medium' | 'high'
+}
+
+interface ActionItem {
+  id: string
+  title: string
+  description: string
+  priority: 'low' | 'medium' | 'high'
+  status: 'pending' | 'in_progress' | 'completed'
+  dueDate: string
+}
+
+interface ClauseAnalysis {
+  id: string
+  text: string
+  isCompliant: boolean
+  confidenceScore: number
+  riskLevel: string
+  category: string
+  explanation: string
+  matchedRules: MatchedRule[]
+  recommendations: string[]
+}
+
+// FastAPI response type imported from fastapi-client.ts for consistency
 
 export class RealTimeAnalysisService {
   private static sessions: Map<string, AnalysisSession> = new Map();
   private static listeners: Map<string, ((session: AnalysisSession) => void)[]> = new Map();
 
+  /**
+   * Validate input parameters for analysis
+   */
+  private static validateAnalysisInput(file: File, language: string): void {
+    if (!file) {
+      throw new Error('File is required for analysis')
+    }
+
+    // Debug logging to understand file object state
+    console.log('🔍 File validation debug:', {
+      hasName: 'name' in file,
+      nameValue: file.name,
+      nameType: typeof file.name,
+      isFileInstance: file instanceof File,
+      constructor: file.constructor.name,
+      prototype: Object.getPrototypeOf(file)?.constructor?.name
+    });
+
+    // Validate file name with more robust checking
+    if (!file.name || typeof file.name !== 'string' || file.name.trim().length === 0) {
+      console.error('❌ File name validation failed:', {
+        name: file.name,
+        type: typeof file.name,
+        length: file.name?.length
+      });
+      throw new Error('File must have a valid name. Please ensure the file has been properly selected.')
+    }
+
+    // Check for invalid file names that might cause issues
+    const invalidChars = /[<>:"/\\|?*\x00-\x1f]/;
+    if (invalidChars.test(file.name)) {
+      throw new Error('File name contains invalid characters. Please rename the file and try again.')
+    }
+
+    if (file.size === 0) {
+      throw new Error('File cannot be empty')
+    }
+
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      throw new Error('File size too large. Maximum size is 50MB')
+    }
+
+    if (!language || typeof language !== 'string' || language.trim().length === 0) {
+      throw new Error('Language parameter is required and must be a non-empty string')
+    }
+
+    // Check for supported file types
+    const supportedTypes = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    const hasValidType = supportedTypes.includes(file.type)
+    const hasValidExtension = file.name.toLowerCase().match(/\.(pdf|txt|doc|docx)$/)
+
+    if (!hasValidType && !hasValidExtension) {
+      throw new Error('Unsupported file type. Please upload PDF, TXT, DOC, or DOCX files')
+    }
+  }
+
   static startAnalysis(file: File, language: string = 'en'): string {
+    // Generate fallback name if file doesn't have a proper name BEFORE validation
+    let fileName = file.name;
+    if (!fileName || typeof fileName !== 'string' || fileName.trim().length === 0) {
+      const extension = this.getFileExtension(file.type) || 'unknown';
+      fileName = `uploaded_file_${Date.now()}.${extension}`;
+      console.warn('⚠️ File without proper name detected, using fallback:', fileName);
+
+      // Create a new file-like object with the proper name
+      try {
+        // Create a new File object with the fallback name
+        const fallbackFile = new File([file], fileName, {
+          type: file.type,
+          lastModified: file.lastModified
+        });
+
+        // Copy over any additional properties from the original file
+        Object.setPrototypeOf(fallbackFile, Object.getPrototypeOf(file));
+
+        // Replace the original file with the fallback
+        file = fallbackFile as File;
+      } catch (error) {
+        console.warn('Could not create fallback file object, proceeding with original:', error);
+      }
+    }
+
+    // Validate input parameters
+    this.validateAnalysisInput(file, language);
+
     const sessionId = `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-    
+
     const session: AnalysisSession = {
       id: sessionId,
-      fileName: file.name,
+      fileName: fileName,
       fileSize: file.size,
       startTime: new Date(),
       status: 'uploading',
@@ -82,14 +244,51 @@ export class RealTimeAnalysisService {
     this.sessions.set(sessionId, session);
     this.listeners.set(sessionId, []);
 
-    // Start processing asynchronously
+    console.log('🚀 Starting real-time analysis:', {
+      sessionId,
+      fileName: file.name,
+      fileSize: file.size,
+      language
+    });
+
+    // Start processing asynchronously with enhanced error handling
     this.processDocument(sessionId, file, language).catch((error) => {
-      console.error('Analysis processing failed:', error); // Likely line ~90
+      console.error('❌ Real-time analysis failed:', error);
+
+      // Determine error type and provide appropriate user message
+      let errorMessage = 'Analysis failed due to an unexpected error';
+      let errorStage = 'Processing failed';
+
+      if (error instanceof Error) {
+        if (error.message.includes('Backend not available')) {
+          errorMessage = 'FastAPI backend is not running. Analysis completed with mock data.';
+          errorStage = 'Using mock data';
+        } else if (error.message.includes('network') || error.message.includes('timeout')) {
+          errorMessage = 'Network error occurred. Please check your connection.';
+          errorStage = 'Network error';
+        } else if (error.message.includes('Invalid response')) {
+          errorMessage = 'Received invalid response from server. Please try again.';
+          errorStage = 'Response error';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       this.updateSession(sessionId, {
         status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        currentStage: 'Processing failed',
+        error: errorMessage,
+        currentStage: errorStage,
         progress: 100,
+      });
+
+      // Log additional error context for debugging
+      console.error('📋 Error context:', {
+        sessionId,
+        fileName: file.name,
+        fileSize: file.size,
+        language,
+        errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined
       });
     });
 
@@ -142,52 +341,76 @@ export class RealTimeAnalysisService {
       let usingMockData = false;
 
       try {
-        // Check backend availability
+        // Check backend availability with timeout
         const healthCheck = await FastAPIService.healthCheck();
         if (healthCheck.status !== 'healthy') {
-          throw new Error('Backend not available');
+          throw new Error(`Backend not available: ${healthCheck.message}`);
         }
 
-        // Upload document
+        // Upload document with progress tracking
         backendResponse = await FastAPIService.uploadDocument(file, language, progressCallback);
         console.log('✅ Real FastAPI backend response received');
+
+        // Validate response structure
+        if (!backendResponse || typeof backendResponse !== 'object') {
+          throw new Error('Invalid response format from FastAPI backend');
+        }
+
       } catch (fastAPIError) {
-        console.warn('⚠ FastAPI backend call failed, using mock data:', fastAPIError);
+        console.warn('⚠ FastAPI backend call failed, falling back to mock data:', fastAPIError);
+        console.warn('Error details:', fastAPIError instanceof Error ? fastAPIError.message : String(fastAPIError));
         usingMockData = true;
 
-        // Mock data matching FastAPI structure
+        // Mock data matching FastAPI structure - fallback when backend is unavailable
+        const mockClauses = Array.from({ length: 8 }, (_, i) => ({
+          id: `clause_${i + 1}`,
+          text: `Clause ${i + 1}: Compliance requirement for ${['disclosure', 'governance', 'reporting', 'risk management'][i % 4]}.`,
+          text_en: `Clause ${i + 1}: Compliance requirement for ${['disclosure', 'governance', 'reporting', 'risk management'][i % 4]}.`,
+        }));
+
+        const mockComplianceResults = Array.from({ length: 8 }, (_, i) => ({
+          clause_id: `clause_${i + 1}`,
+          is_compliant: Math.random() > 0.3,
+          confidence_score: 0.8 + Math.random() * 0.2,
+          matched_rules: [{
+            rule_text: `SEBI LODR Regulation ${i + 1}.${i + 1}`,
+            score: 0.85,
+            metadata: {},
+            is_relevant: true,
+            reason: 'High relevance match',
+          }],
+          risk_assessment: {
+            severity: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
+            category: ['Legal', 'Financial', 'Operational'][Math.floor(Math.random() * 3)] as 'Legal' | 'Financial' | 'Operational',
+            score: Math.random(),
+            impact: 'Moderate impact on compliance',
+            mitigation: 'Review and update clause as needed',
+          },
+          explanation: `This clause ${Math.random() > 0.3 ? 'meets' : 'does not meet'} SEBI standards.`,
+        }));
+
         backendResponse = {
           summary: `Analysis of ${file.name} for SEBI compliance.`,
+          timelines: {
+            'timeline_1': {
+              start: '2020-01-01',
+              end: '2024-12-31',
+              description: 'Document validity period'
+            }
+          },
+          clauses: mockClauses,
+          compliance_results: mockComplianceResults,
           compliance_score: 85,
           risk_level: 'medium',
-          clauses: Array.from({ length: 8 }, (_, i) => ({
-            id: `clause_${i + 1}`,
-            text: `Clause ${i + 1}: Compliance requirement for ${['disclosure', 'governance', 'reporting', 'risk management'][i % 4]}.`,
-            text_en: `Clause ${i + 1}: Compliance requirement for ${['disclosure', 'governance', 'reporting', 'risk management'][i % 4]}.`,
-          })),
-          compliance_results: Array.from({ length: 8 }, (_, i) => ({
-            clause_id: `clause_${i + 1}`,
-            is_compliant: Math.random() > 0.3,
-            confidence_score: 0.8 + Math.random() * 0.2,
-            matched_rules: [{
-              rule_text: `SEBI LODR Regulation ${i + 1}.${i + 1}`,
-              score: 0.85,
-              metadata: {},
-              is_relevant: true,
-              reason: 'High relevance match',
-            }],
-            risk_assessment: {
-              severity: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)],
-              category: ['Legal', 'Financial', 'Operational'][Math.floor(Math.random() * 3)],
-              score: Math.random(),
-              impact: 'Moderate impact on compliance',
-              mitigation: 'Review and update clause as needed',
-            },
-            explanation: `This clause ${Math.random() > 0.3 ? 'meets' : 'does not meet'} SEBI standards.`,
-          })),
           uploaded_at: new Date().toISOString(),
           processed_at: new Date().toISOString(),
         };
+
+        console.log('📋 Generated mock data:', {
+          clausesCount: mockClauses.length,
+          complianceResultsCount: mockComplianceResults.length,
+          mockDataNote: 'Using fallback mock data due to backend unavailability'
+        });
       }
 
       // Update to analyzing stage
@@ -220,37 +443,60 @@ export class RealTimeAnalysisService {
         result: processedDocument,
       });
     } catch (error) {
-      const appError = ErrorHandler.handleAnalysisError(error, {
+      console.error('❌ Process document failed:', error);
+
+      const appError = await ErrorHandler.handleAnalysisError(error, {
         sessionId,
         fileName: file.name,
         language,
       });
+
       this.updateSession(sessionId, {
         status: 'error',
         error: ErrorHandler.getUserMessage(appError),
         currentStage: 'Processing failed',
         progress: 100,
       });
-      throw error; // Re-throw for FileUpload.tsx to handle
+
+      // Re-throw error with more context
+      const enhancedError = new Error(`Document processing failed: ${error instanceof Error ? error.message : String(error)}`);
+      enhancedError.cause = error;
+      throw enhancedError;
     }
   }
 
   private static async enrichAnalysisData(backendData: FastAPIResponse, file: File): Promise<ProcessedDocument> {
-    // Transform backend data to frontend format
+    // Transform backend data to frontend format with robust validation
     const clauses = Array.isArray(backendData.clauses) ? backendData.clauses : [];
-    const complianceResults = Array.isArray(backendData.compliance_results) 
-      ? backendData.compliance_results 
+    const complianceResults = Array.isArray(backendData.compliance_results)
+      ? backendData.compliance_results
       : (backendData.compliance_results ? [backendData.compliance_results] : []);
-    
-    // Calculate compliance metrics
-    const totalClauses = clauses.length;
-    const compliantCount = complianceResults.filter((r: any) => r.is_compliant).length;
+
+    // Validate data integrity
+    if (!backendData.summary && clauses.length === 0 && complianceResults.length === 0) {
+      throw new Error('Invalid backend response: missing required data fields');
+    }
+
+    // Calculate compliance metrics with safety checks
+    const totalClauses = Math.max(clauses.length, complianceResults.length, 1); // Ensure at least 1 for division
+    const compliantCount = complianceResults.filter((r: any) => r && typeof r.is_compliant === 'boolean' && r.is_compliant).length;
     const nonCompliantCount = totalClauses - compliantCount;
-    const highRiskCount = complianceResults.filter((r: any) => r.risk_assessment?.severity === 'High').length;
-    
-    // Calculate overall score
-    const overallScore = totalClauses > 0 ? Math.round((compliantCount / totalClauses) * 100) : 0;
-    const riskLevel = overallScore >= 80 ? 'low' : overallScore >= 60 ? 'medium' : 'high';
+    const highRiskCount = complianceResults.filter((r: any) =>
+      r && r.risk_assessment && (r.risk_assessment.severity === 'High' || r.risk_assessment.severity === 'HIGH')
+    ).length;
+
+    // Calculate overall score with bounds checking
+    const overallScore = totalClauses > 0 ? Math.max(0, Math.min(100, Math.round((compliantCount / totalClauses) * 100))) : 0;
+    const riskLevel: 'low' | 'medium' | 'high' = overallScore >= 80 ? 'low' : overallScore >= 60 ? 'medium' : 'high';
+
+    console.log('📊 Compliance metrics calculated:', {
+      totalClauses,
+      compliantCount,
+      nonCompliantCount,
+      highRiskCount,
+      overallScore,
+      riskLevel
+    });
     
     const complianceAreas = this.generateComplianceAreas(complianceResults);
     const keyFindings = this.generateKeyFindings({ 
@@ -400,6 +646,22 @@ export class RealTimeAnalysisService {
 
     const listeners = this.listeners.get(sessionId) || [];
     listeners.forEach((callback) => callback(updatedSession));
+  }
+
+  private static getFileExtension(mimeType: string): string {
+    const mimeToExt: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'text/plain': 'txt',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+    };
+
+    return mimeToExt[mimeType] || 'file';
   }
 
   private static formatFileSize(bytes: number): string {

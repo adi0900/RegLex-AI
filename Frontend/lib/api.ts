@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosResponse } from 'axios'
-import { APP_CONFIG, getApiConfig } from '@/lib/config'
+import { APP_CONFIG, isOfflineMode, getApiConfig } from '@/lib/config'
 import { FastAPIService } from '@/lib/fastapi-services'
+import { safeLocalStorage } from '@/lib/utils'
 
 // Get API configuration from environment
 const apiConfig = getApiConfig()
@@ -54,11 +55,9 @@ api.interceptors.request.use(
     }
 
     // Add auth token if available
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth_token')
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`
-      }
+    const token = safeLocalStorage.getItem('auth_token')
+    if (token && typeof token === 'string' && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`
     }
 
     return config
@@ -110,7 +109,7 @@ api.interceptors.response.use(
         break
       case 401:
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('auth_token')
+          safeLocalStorage.removeItem('auth_token')
         }
         errorMessage = 'Authentication required - please log in'
         errorName = 'AuthenticationError'
@@ -226,6 +225,7 @@ export const complianceAPI = {
     const uploadResult = await FastAPIService.uploadDocument(file, lang, onProgress)
     
     // Process and enhance the FastAPI response
+    const complianceResults = uploadResult.compliance_results || {}
     const clauses = uploadResult.clauses || []
     const totalClauses = clauses.length
     

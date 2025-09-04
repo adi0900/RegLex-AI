@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { safeLocalStorage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -55,38 +56,77 @@ export default function AnalysisResultPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Load real analysis data from localStorage
-    const analysisData = localStorage.getItem(`analysis_${params.id}`)
+    // Load real analysis data from localStorage with safe parsing
+    const analysisData = safeLocalStorage.getItem(`analysis_${params.id}`)
     
     if (analysisData) {
       try {
-        const data = JSON.parse(analysisData)
-        const complianceResults = data.compliance_results || []
-        const clauses = data.clauses || []
-        
-        // Calculate stats
-        const compliantCount = complianceResults.filter((r: any) => r.is_compliant).length
-        // const nonCompliantCount = complianceResults.filter((r: any) => !r.is_compliant).length
-        const highRiskCount = complianceResults.filter((r: any) => r.risk_assessment?.severity === 'High').length
-        const mediumRiskCount = complianceResults.filter((r: any) => r.risk_assessment?.severity === 'Medium').length
-        const lowRiskCount = complianceResults.filter((r: any) => r.risk_assessment?.severity === 'Low').length
-        
-        const overallScore = complianceResults.length > 0 
-          ? (compliantCount / complianceResults.length) * 100 
+        let data
+
+        // Handle both string and object formats (defensive programming)
+        if (typeof analysisData === 'string') {
+          // If it's a string, check if it's valid JSON before parsing
+          if (analysisData.trim().startsWith('{') || analysisData.trim().startsWith('[')) {
+            data = JSON.parse(analysisData)
+          } else {
+            // If it's not JSON, log warning and skip
+            console.warn('Invalid JSON format in localStorage for analysis data:', analysisData.substring(0, 100) + '...')
+            setLoading(false)
+            return
+          }
+        } else if (typeof analysisData === 'object' && analysisData !== null) {
+          // If it's already an object, use it directly
+          data = analysisData
+        } else {
+          console.warn('Unexpected data type in localStorage:', typeof analysisData, analysisData)
+          setLoading(false)
+          return
+        }
+
+        // Validate data structure
+        if (!data || typeof data !== 'object') {
+          console.error('Invalid data structure from localStorage:', data)
+          setLoading(false)
+          return
+        }
+
+        const complianceResults = Array.isArray(data.compliance_results) ? data.compliance_results : []
+        const clauses = Array.isArray(data.clauses) ? data.clauses : []
+
+        // Calculate stats with safe filtering
+        const compliantCount = complianceResults.filter((r: any) =>
+          r && typeof r.is_compliant === 'boolean' && r.is_compliant
+        ).length
+
+        const highRiskCount = complianceResults.filter((r: any) =>
+          r && r.risk_assessment && r.risk_assessment.severity === 'High'
+        ).length
+
+        const mediumRiskCount = complianceResults.filter((r: any) =>
+          r && r.risk_assessment && r.risk_assessment.severity === 'Medium'
+        ).length
+
+        const lowRiskCount = complianceResults.filter((r: any) =>
+          r && r.risk_assessment && r.risk_assessment.severity === 'Low'
+        ).length
+
+        const overallScore = complianceResults.length > 0
+          ? Math.round((compliantCount / complianceResults.length) * 100)
           : 0
         
         // Convert compliance results to clause format
         const convertedClauses = complianceResults.map((result: any, index: number) => {
-          const clause = clauses.find((c: any) => c.id === result.clause_id) || clauses[index]
-          const riskLevel = result.risk_assessment?.severity?.toLowerCase() || 'low'
+          const clause = clauses.find((c: any) => c.clause_id === result.clause?.clause_id || c.id === result.clause_id) || clauses[index]
+          const riskExplanation = data.compliance_results?.risk_explanations?.[index]
+          const riskLevel = riskExplanation?.severity?.toLowerCase() || (result.is_compliant ? 'compliant' : 'medium')
           
           return {
-            id: result.clause_id || (index + 1).toString(),
-            text: clause?.text_en || clause?.text || `Clause ${index + 1}`,
+            id: result.clause?.clause_id || result.clause_id || (index + 1).toString(),
+            text: result.clause?.text_en || clause?.text_en || clause?.text || `Clause ${index + 1}`,
             riskLevel: result.is_compliant ? 'compliant' : riskLevel,
             regulation: result.matched_rules?.[0]?.rule_text || 'SEBI Regulations',
-            recommendation: result.explanation || result.risk_assessment?.mitigation || 'No recommendation available',
-            confidence: Math.round(result.confidence_score * 100) || 85
+            recommendation: result.final_reason || riskExplanation?.mitigation || 'Review clause for compliance',
+            confidence: Math.round((result.confidence_score || 0.85) * 100)
           }
         })
         
@@ -107,6 +147,24 @@ export default function AnalysisResultPage() {
         })
       } catch (error) {
         console.error('Error parsing analysis data:', error)
+
+        // Provide specific error messages based on error type
+        if (error instanceof SyntaxError) {
+          console.error('JSON parsing failed - data may be corrupted or in wrong format')
+          console.error('Raw data preview:', analysisData?.substring(0, 200) + '...')
+        } else if (error instanceof TypeError) {
+          console.error('Type error - data structure may be invalid')
+        } else {
+          console.error('Unknown error during data processing')
+        }
+
+        // Clear potentially corrupted localStorage item
+        if (!safeLocalStorage.removeItem(`analysis_${params.id}`)) {
+          console.error('Failed to clear corrupted analysis data from localStorage')
+        } else {
+          console.log('Cleared corrupted analysis data from localStorage')
+        }
+
         setResult(null)
       }
     } else {

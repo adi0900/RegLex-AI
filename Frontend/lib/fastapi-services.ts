@@ -1,7 +1,14 @@
 /**
  * FastAPI Backend Services
  * Direct integration with the FastAPI backend at Backend/src/pipeline/run_pipeline.py
- * Provides typed interfaces for all backend endpoints
+ * Provides typed interfaces for all backend endpoints with robust error handling and retry logic
+ *
+ * Features:
+ * - Exponential backoff retry mechanism
+ * - Comprehensive error handling and logging
+ * - Type-safe API responses
+ * - Health check and connection management
+ * - Progress tracking for file uploads
  */
 
 import axios, { AxiosError, AxiosResponse } from 'axios'
@@ -10,6 +17,7 @@ import type {
   ComplianceVerificationRequest, 
   ComplianceVerificationResponse,
   ComplianceResult,
+  ClauseInput,
   RiskAssessment,
   MatchedRule
 } from '@/lib/api'
@@ -22,7 +30,9 @@ const FASTAPI_TIMEOUT = APP_CONFIG.API_TIMEOUT
 const fastapiClient = axios.create({
   baseURL: FASTAPI_BASE_URL,
   timeout: FASTAPI_TIMEOUT,
-  // Don't set default headers here - let each request set its own headers
+  headers: {
+    'Accept': 'application/json'
+  }
 })
 
 // Request interceptor for FastAPI
@@ -62,22 +72,53 @@ fastapiClient.interceptors.response.use(
   }
 )
 
-// Retry utility for FastAPI requests
+
+// Retry utility for FastAPI requests with exponential backoff
 const retryFastapiRequest = async (
   requestFn: () => Promise<AxiosResponse>,
   retries = 3,
-  delay = 1000
+  delay = 1000,
+  maxDelay = 10000
 ): Promise<AxiosResponse> => {
-  try {
-    return await requestFn()
-  } catch (error) {
-    if (retries > 0 && error instanceof AxiosError && shouldRetryFastAPI(error)) {
-      console.warn(`FastAPI request failed, retrying... (${4 - retries}/3)`)
-      await new Promise(resolve => setTimeout(resolve, delay * (4 - retries)))
-      return retryFastapiRequest(requestFn, retries - 1, delay)
+  let lastError: Error = new Error('Unknown error')
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const result = await requestFn()
+
+      // If successful and not the first attempt, log recovery
+      if (attempt > 0) {
+        console.log(`✅ FastAPI request succeeded on attempt ${attempt + 1}`)
+      }
+
+      return result
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+
+      // Don't retry on the last attempt
+      if (attempt === retries) {
+        console.error(`❌ FastAPI request failed after ${retries + 1} attempts:`, lastError.message)
+        break
+      }
+
+      // Check if error is retryable
+      if (error instanceof AxiosError && !shouldRetryFastAPI(error)) {
+        console.error(`❌ FastAPI request failed with non-retryable error:`, lastError.message)
+        throw lastError
+      }
+
+      // Calculate exponential backoff delay with jitter
+      const exponentialDelay = Math.min(delay * Math.pow(2, attempt), maxDelay)
+      const jitter = Math.random() * 0.1 * exponentialDelay // Add 10% jitter
+      const finalDelay = exponentialDelay + jitter
+
+      console.warn(`⚠️ FastAPI request failed on attempt ${attempt + 1}/${retries + 1}, retrying in ${Math.round(finalDelay)}ms:`, lastError.message)
+
+      await new Promise(resolve => setTimeout(resolve, finalDelay))
     }
-    throw error
   }
+
+  throw lastError
 }
 
 const shouldRetryFastAPI = (error: AxiosError): boolean => {
@@ -92,6 +133,49 @@ interface FastAPIUploadResponse {
   timelines: Record<string, any>
   clauses: any[]
   compliance_results: any
+}
+
+/**
+ * Simple connectivity test function
+ */
+export async function testBackendConnectivity(): Promise<{
+  isConnected: boolean
+  responseTime: number
+  error?: string
+}> {
+  const startTime = Date.now()
+
+  try {
+    console.log('🔍 Testing backend connectivity...')
+
+    const response = await fastapiClient.get('/health', {
+      timeout: 3000, // 3 second timeout for connectivity test
+      validateStatus: (status) => status < 500
+    })
+
+    const responseTime = Date.now() - startTime
+
+    if (response.status === 200) {
+      console.log('✅ Backend connectivity test passed:', responseTime + 'ms')
+      return { isConnected: true, responseTime }
+    } else {
+      console.warn('⚠️ Backend responded with status:', response.status)
+      return {
+        isConnected: false,
+        responseTime,
+        error: `HTTP ${response.status}: ${response.statusText}`
+      }
+    }
+  } catch (error) {
+    const responseTime = Date.now() - startTime
+    console.error('❌ Backend connectivity test failed:', error)
+
+    return {
+      isConnected: false,
+      responseTime,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
 }
 
 interface FastAPIHealthResponse {
@@ -146,10 +230,7 @@ export class FastAPIService {
       
       const response = await retryFastapiRequest(() =>
         fastapiClient.get<FastAPIHealthResponse>('/health', {
-          timeout: 10000, // 10 second timeout for health checks
-          headers: {
-            'Accept': 'application/json'
-          }
+          timeout: 5000 // 5 second timeout for health checks
         })
       )
       
@@ -202,11 +283,7 @@ export class FastAPIService {
       console.log('ℹ️ FastAPI API Info - Calling backend root endpoint')
       
       const response = await retryFastapiRequest(() =>
-        fastapiClient.get<FastAPIRootResponse>('/', {
-          headers: {
-            'Accept': 'application/json'
-          }
-        })
+        fastapiClient.get<FastAPIRootResponse>('/')
       )
       
       return response.data
@@ -227,7 +304,7 @@ export class FastAPIService {
     summary: string
     timelines: Record<string, any>
     clauses: any[]
-    compliance_results: any
+    compliance_results: any[]
     fileName: string
     fileSize: number
     processingTime: number
@@ -242,40 +319,69 @@ export class FastAPIService {
     }
 
     const startTime = Date.now()
-    
+
     try {
+      // Input validation with detailed logging
+      console.log('📋 File validation:', {
+        fileExists: !!file,
+        fileName: file?.name,
+        fileSize: file?.size,
+        fileType: file?.type,
+        language: language
+      })
+
+      if (!file) {
+        throw new Error('Invalid file: file object is null or undefined')
+      }
+
+      if (!file.name) {
+        console.error('❌ File validation failed - missing name:', {
+          fileConstructor: file.constructor.name,
+          filePrototype: Object.getPrototypeOf(file)?.constructor?.name,
+          fileKeys: Object.keys(file)
+        })
+        throw new Error('Invalid file: file must have a name')
+      }
+
+      if (file.size === 0) {
+        throw new Error('Invalid file: file cannot be empty')
+      }
+
+      if (!language || typeof language !== 'string') {
+        throw new Error('Invalid language: language parameter is required and must be a string')
+      }
+
       console.log('📤 FastAPI Document Upload:', {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
         language,
-        endpoint: '/upload-pdf/'
+        endpoint: '/upload-pdf/',
+        fileConstructor: file.constructor.name,
+        filePrototype: Object.getPrototypeOf(file)?.constructor?.name
       })
 
-      // Create FormData for file upload
+      // Create FormData for file upload with validation
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('lang', language)
-      
-      // Debug logging
+      formData.append('lang', language.trim())
+
+      // Debug logging with FormData validation
       console.log('📋 FormData Debug:', {
         fileSize: file.size,
         fileType: file.type,
         fileName: file.name,
-        language: language,
+        language: language.trim(),
         formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
           key,
           valueType: typeof value,
-          valueName: value instanceof File ? value.name : 'non-file'
+          valueName: value instanceof File ? `${value.name} (${value.size} bytes)` : 'non-file'
         }))
       })
 
       const response = await retryFastapiRequest(() =>
         fastapiClient.post<FastAPIUploadResponse>('/upload-pdf/', formData, {
-          headers: {
-            // Let browser set Content-Type with proper multipart/form-data boundary
-            'Accept': 'application/json',
-          },
+          // Don't set Content-Type manually - let browser set multipart/form-data with boundary
           timeout: FASTAPI_TIMEOUT,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total && onProgress) {
@@ -285,9 +391,6 @@ export class FastAPIService {
           },
           // Ensure proper request configuration
           validateStatus: (status) => status < 500, // Accept all status codes below 500 for proper error handling
-          
-          // Make sure we don't override the Content-Type that axios sets automatically for FormData
-          transformRequest: [(data) => data], // Pass FormData through unchanged
         })
       )
 
@@ -298,22 +401,24 @@ export class FastAPIService {
         processingTime: `${processingTime}ms`,
         summary_length: backendData.summary?.length || 0,
         clauses_count: backendData.clauses?.length || 0,
-        compliance_status: backendData.compliance_results?.status || 'processed'
+        compliance_results_count: Array.isArray(backendData.compliance_results) ? backendData.compliance_results.length : 1
       })
 
       return {
         // Raw backend data
         summary: backendData.summary || '',
         timelines: backendData.timelines || {},
-        clauses: backendData.clauses || [],
-        compliance_results: backendData.compliance_results || {},
-        
+        clauses: Array.isArray(backendData.clauses) ? backendData.clauses : [],
+        compliance_results: Array.isArray(backendData.compliance_results)
+          ? backendData.compliance_results
+          : (backendData.compliance_results ? [backendData.compliance_results] : []),
+
         // Enhanced metadata
         fileName: file.name,
         fileSize: file.size,
         processingTime,
         source: 'fastapi_backend',
-        
+
         // Backend information
         backendInfo: {
           apiUrl: FASTAPI_BASE_URL,
@@ -431,7 +536,7 @@ export class FastAPIService {
           confidence_score: Math.random() * 0.4 + 0.6, // 0.6-1.0 range
           matched_rules: matchedRules,
           risk_assessment: riskAssessment,
-          explanation: `Compliance analysis completed via FastAPI backend. ${uploadResult.compliance_results?.status || 'Processing complete'}`
+          explanation: `Compliance analysis completed via FastAPI backend. Processing complete`
         }
       })
 
@@ -562,7 +667,7 @@ export class FastAPIService {
    * Delete Document - For now delegates to mock service  
    * TODO: Implement proper delete functionality with backend
    */
-  static deleteDocument(_documentId: string) {
+  static deleteDocument(documentId: string) {
     console.log('🗑️ FastAPI Service - Delete document (using mock implementation)')
     // TODO: Implement proper delete functionality with FastAPI backend
     throw new Error('Delete functionality not yet implemented for FastAPIService')

@@ -108,7 +108,7 @@ export default function DashboardPage() {
           {lastUpdated && (
             <Badge variant="outline" className="text-xs">
               <Clock className="h-3 w-3 mr-1" />
-              Updated {new Date(lastUpdated).toLocaleTimeString()}
+              Updated {lastUpdated.toLocaleTimeString()}
             </Badge>
           )}
           <Button onClick={fetchDashboardData} size="sm" disabled={isLoading}>

@@ -19,7 +19,7 @@ export default function OverviewPage() {
   const stats = analytics || {
     totalDocuments: 0,
     totalClauses: 0,
-    complianceScore: 0,
+    complianceRate: 0,
     riskDistribution: { high: 0, medium: 0, low: 0 }
   }
 
@@ -54,8 +54,8 @@ export default function OverviewPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.complianceScore}%</div>
-            <Progress value={stats.complianceScore} className="mt-2" />
+            <div className="text-2xl font-bold">{stats.complianceRate}%</div>
+            <Progress value={stats.complianceRate} className="mt-2" />
           </CardContent>
         </Card>
 
@@ -97,7 +97,7 @@ export default function OverviewPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ComplianceChart />
+            <ComplianceChart data={[]} riskData={[]} />
           </CardContent>
         </Card>
 

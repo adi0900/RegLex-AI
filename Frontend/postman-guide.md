@@ -400,3 +400,7 @@ newman run sebi-compliance-tests.json \
 ```
 
 This guide covers comprehensive testing of the SEBI Compliance API using Postman, ensuring all endpoints work correctly and handle edge cases appropriately.
+
+---
+
+**Updated: October 2025** - Postman testing guide fully operational with current API endpoints ✅

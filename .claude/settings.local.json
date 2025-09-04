@@ -19,7 +19,11 @@
       "Bash(git reset:*)",
       "Bash(/dev/null)",
       "Bash(taskkill:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run type-check:*)",
+      "Bash(tasklist:*)",
+      "Bash(cmd /c:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
