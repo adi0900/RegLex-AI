@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { complianceAPI } from '@/lib/api'
-import { MockComplianceService } from '@/lib/mock-services'
 import { useToast } from './use-toast'
 import type { ComplianceVerificationRequest, ComplianceVerificationResponse } from '@/lib/api'
 
@@ -26,7 +25,8 @@ export function useComplianceVerification() {
         ...result,
         processing_time_ms: 0 // Default value since it's not in the API response
       }))
-      MockComplianceService.saveComplianceResultsToStorage(mockResults as any)
+      // TODO: Implement saving results with FastAPIService
+      console.log('Compliance results received:', mockResults)
       
       // Invalidate analytics to refresh dashboard
       queryClient.invalidateQueries({ queryKey: ['analytics'] })
@@ -111,7 +111,10 @@ export function useLLMProviders() {
 export function useDocuments() {
   return useQuery({
     queryKey: ['documents'],
-    queryFn: () => MockComplianceService.getDocumentsFromStorage(),
+    queryFn: () => {
+      // TODO: Implement document retrieval with FastAPIService
+      return Promise.resolve([])
+    },
     staleTime: 1 * 60 * 1000, // 1 minute
   })
 }
@@ -120,7 +123,10 @@ export function useDocuments() {
 export function useClauses() {
   return useQuery({
     queryKey: ['clauses'],
-    queryFn: () => MockComplianceService.getClausesFromStorage(),
+    queryFn: () => {
+      // TODO: Implement clause retrieval with FastAPIService
+      return Promise.resolve([])
+    },
     staleTime: 1 * 60 * 1000, // 1 minute
   })
 }
@@ -129,7 +135,10 @@ export function useClauses() {
 export function useComplianceResults() {
   return useQuery({
     queryKey: ['compliance-results'],
-    queryFn: () => MockComplianceService.getComplianceResultsFromStorage(),
+    queryFn: () => {
+      // TODO: Implement compliance results retrieval with FastAPIService
+      return Promise.resolve([])
+    },
     staleTime: 1 * 60 * 1000, // 1 minute
   })
 }

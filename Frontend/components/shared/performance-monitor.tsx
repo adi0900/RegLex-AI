@@ -45,14 +45,25 @@ export function PerformanceMonitor() {
     // Monitor memory usage in development
     if (isDev) {
       const interval = setInterval(() => {
-        // Only access memory if it exists
-        if (performance.memory && typeof performance.memory.getUsage === 'function') {
-          const memoryInfo = performance.memory.getUsage()
-          if (memoryInfo && memoryInfo.used > 50) {
-            console.warn('High memory usage detected:', memoryInfo)
+        // Check browser memory API (Chrome only)
+        if ('memory' in performance) {
+          const memory = (performance as any).memory
+          if (memory) {
+            const usedMB = Math.round(memory.usedJSHeapSize / 1024 / 1024)
+            const totalMB = Math.round(memory.totalJSHeapSize / 1024 / 1024)
+            const limitMB = Math.round(memory.jsHeapSizeLimit / 1024 / 1024)
+            
+            // Alert only if memory usage is above 200MB (more reasonable threshold)
+            if (usedMB > 200) {
+              console.warn('High memory usage detected:', {
+                used: usedMB,
+                total: totalMB,
+                limit: limitMB
+              })
+            }
           }
         }
-      }, 30000) // Check every 30 seconds
+      }, 60000) // Check every 60 seconds
 
       return () => clearInterval(interval)
     }

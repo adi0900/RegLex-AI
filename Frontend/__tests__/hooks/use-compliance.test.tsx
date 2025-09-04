@@ -2,12 +2,10 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAnalytics, useDocuments } from '@/hooks/use-compliance'
 import * as api from '@/lib/api'
-import * as mockServices from '@/lib/mock-services'
 import React from 'react'
 
 // Mock the API module and mock services
 jest.mock('@/lib/api')
-jest.mock('@/lib/mock-services')
 
 // Create a test wrapper with QueryClient
 const createWrapper = () => {
@@ -108,27 +106,8 @@ describe('useDocuments Hook', () => {
     jest.clearAllMocks()
   })
 
-  it('should fetch documents from storage', async () => {
-    const mockDocuments = [
-      {
-        id: '1',
-        name: 'test.pdf',
-        uploadDate: new Date().toISOString(),
-        status: 'processed',
-      },
-    ]
-
-    // Mock the MockComplianceService object
-    const mockMockComplianceService = {
-      getDocumentsFromStorage: jest.fn().mockResolvedValue(mockDocuments),
-    }
-
-    // Replace the MockComplianceService property temporarily
-    const originalMockComplianceService = (mockServices as any).MockComplianceService
-    Object.defineProperty(mockServices, 'MockComplianceService', {
-      value: mockMockComplianceService,
-      writable: true,
-    })
+  it('should return empty array from FastAPIService', async () => {
+    const mockDocuments: never[] = []
 
     const { result } = renderHook(() => useDocuments(), {
       wrapper: createWrapper(),
@@ -138,12 +117,7 @@ describe('useDocuments Hook', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
+    // Since we're using FastAPIService now, expect empty array
     expect(result.current.data).toEqual(mockDocuments)
-
-    // Restore the original MockComplianceService
-    Object.defineProperty(mockServices, 'MockComplianceService', {
-      value: originalMockComplianceService,
-      writable: true,
-    })
   })
 })

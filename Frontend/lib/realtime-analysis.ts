@@ -1,7 +1,8 @@
 // Real-time Analysis Processing Service
 // Manages document upload, processing, and analysis flow with FastAPI backend
 
-import { FastAPIService, FastAPIDataTransformer, FastAPIResponse } from './fastapi-client'
+import { FastAPIService } from './fastapi-services'
+import { FastAPIDataTransformer, FastAPIResponse } from './fastapi-client'
 import { ErrorHandler } from './error-handler'
 
 // Types for real-time analysis
@@ -161,15 +162,16 @@ export class RealTimeAnalysisService {
       
       try {
         // Check backend availability first
-        const isBackendAvailable = await FastAPIService.checkBackendAvailability()
-        if (!isBackendAvailable) {
-          console.warn('⚠️ FastAPI backend not available, using enhanced mock data')
+        const healthCheck = await FastAPIService.healthCheck()
+        if (healthCheck.status !== 'healthy') {
+          console.warn('⚠️ FastAPI backend not healthy, using enhanced mock data')
           throw new Error('Backend not available')
         }
 
         // Attempt to call FastAPI backend
         backendResponse = await FastAPIService.uploadDocument(
-          { file, lang: language },
+          file,
+          language,
           progressCallback
         )
         console.log('✅ Real FastAPI backend response received')

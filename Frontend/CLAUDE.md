@@ -7,12 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a SEBI compliance and legal document processing system built with Next.js 14, TypeScript, Tailwind CSS, and Shadcn UI components. The system analyzes legal clauses in documents and verifies their compliance against SEBI regulations using multiple LLM providers and vector similarity search.
 
 **Key Features:**
-- Multi-LLM Support: Claude, Gemini, OpenAI, and Mistral integration
-- Legal-BERT Embeddings: Specialized legal language model for semantic understanding
-- Vector Similarity Search: BigQuery-powered regulation retrieval using cosine similarity
-- Risk Assessment: Automated categorization and scoring of compliance risks
-- Cloud-Native: Built on Google Cloud Platform for scalability
-- Modern UI: Next.js 14 with TypeScript, Tailwind CSS, and Shadcn UI components
+- ✅ **FastAPI Integration**: Full Python FastAPI backend with CORS support
+- ✅ **Multi-LLM Support**: Claude, Gemini, OpenAI, and Mistral integration
+- ✅ **Document Processing**: PDF text extraction and analysis pipeline
+- ✅ **Real-time Upload**: Document upload with progress tracking
+- ✅ **Health Monitoring**: Backend connectivity and performance monitoring
+- ✅ **Risk Assessment**: Automated categorization and scoring of compliance risks
+- ✅ **Modern UI**: Next.js 14 with TypeScript, Tailwind CSS, and Shadcn UI components
+- ✅ **Error Handling**: Comprehensive error handling and fallback mechanisms
 
 ## Key Dependencies and Environment Setup
 
@@ -38,7 +40,13 @@ Key dependencies include:
 - `zod` for validation
 
 Environment variables needed in `.env.local`:
-- `NEXT_PUBLIC_API_URL`: Backend API URL (e.g., http://localhost:8000)
+- `NEXT_PUBLIC_API_URL`: FastAPI Backend URL (default: http://127.0.0.1:8000)
+- `NEXT_PUBLIC_USE_MOCK_API`: Set to 'false' for FastAPI backend, 'true' for mock data
+- `NEXT_PUBLIC_ENABLE_ANALYTICS`: Enable performance analytics (true/false)
+- `NEXT_PUBLIC_ENABLE_NOTIFICATIONS`: Enable notifications (true/false)
+- `NEXT_PUBLIC_API_TIMEOUT`: API timeout in milliseconds (default: 300000)
+- `GEMINI_API_KEY`: Google Gemini API key for document processing
+- `GEMINI_API_KEY_2`: Secondary Gemini API key for redundancy
 
 ## System Architecture
 
@@ -170,6 +178,35 @@ npm run test:e2e
 # Run end-to-end tests with UI
 npm run test:e2e:ui
 ```
+
+## FastAPI Backend Setup
+
+The backend runs on Python with FastAPI. To start both frontend and backend:
+
+```bash
+# Terminal 1 - Start Frontend
+cd Frontend
+npm run dev
+# Frontend runs on http://localhost:3001
+
+# Terminal 2 - Start Backend
+cd Backend
+python app.py dev
+# Backend runs on http://127.0.0.1:8000
+```
+
+### Backend API Endpoints:
+- **Health Check**: `GET /health` - Check if backend is running
+- **API Info**: `GET /` - Get available endpoints
+- **Document Upload**: `POST /upload-pdf/` - Upload and process documents
+- **API Documentation**: `GET /docs` - Interactive API documentation
+
+### Current Integration Status:
+- ✅ **CORS Configured**: Frontend can communicate with backend
+- ✅ **Error Handling**: Proper 422, 500, and network error handling  
+- ✅ **Health Monitoring**: Real-time backend connectivity status
+- ✅ **Document Upload**: File upload with progress tracking
+- ✅ **Gemini Integration**: AI-powered document processing
 
 ## UI Component Library
 

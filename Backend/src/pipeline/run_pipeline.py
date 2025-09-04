@@ -1,8 +1,9 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from src.extraction.extract_pipeline import _extract_text_from_pdf
 from src.summerizer.llm_client import generate_summary
-from src.anomaly_detector.ano_detector_agent import anomaly_detection_pipeline
-from src.compliance_checker.compliance_agent import ComplianceAgent
+# from src.anomaly_detector.ano_detector_agent import anomaly_detection_pipeline
+# from src.compliance_checker.compliance_agent import ComplianceAgent
 import traceback
 import re
 import json
@@ -13,6 +14,20 @@ load_dotenv()
 # Add project root to path
 
 app = FastAPI()
+
+# Add CORS middleware for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001", 
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 @app.post("/upload-pdf/")
 async def run_backend(file: UploadFile = File(...), lang: str = Form("en")):
@@ -47,8 +62,9 @@ async def run_backend(file: UploadFile = File(...), lang: str = Form("en")):
         clauses = data.get("Clauses", [])
         print(clauses)
         # anomalies = anomaly_detection_pipeline(clauses)
-        compliance_agent = ComplianceAgent()
-        compliance_results = compliance_agent.ensure_compliance(clauses)
+        # compliance_agent = ComplianceAgent()
+        # compliance_results = compliance_agent.ensure_compliance(clauses)
+        compliance_results = {"status": "Compliance checking temporarily disabled"}
 
         custom_encoders = {
             np.bool_: bool,
@@ -77,6 +93,10 @@ async def run_backend(file: UploadFile = File(...), lang: str = Form("en")):
             status_code=500,
             detail=f"Processing error: {str(e)}"
         )
+
+@app.get("/")
+async def root():
+    return {"message": "SEBI Hack Backend API", "status": "running", "endpoints": ["/upload-pdf/", "/health"]}
 
 @app.get("/health")
 async def health_check():

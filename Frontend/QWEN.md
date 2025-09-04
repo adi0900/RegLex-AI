@@ -2,36 +2,112 @@
 
 This file provides guidance to Qwen Code when working with code in this repository.
 
-## Overview
+## System Overview
 
-This is a SEBI compliance and legal document processing system built with Next.js 14, TypeScript, Tailwind CSS, and Shadcn UI components. The system analyzes legal clauses in documents and verifies their compliance against SEBI regulations using multiple LLM providers and vector similarity search.
+This is a comprehensive SEBI compliance and legal document processing system with a full-stack architecture: Next.js 14 frontend with Python FastAPI backend. The system analyzes legal clauses in documents and verifies their compliance against SEBI regulations using multiple LLM providers and advanced document processing.
 
-**Key Features:**
-- Multi-LLM Support: Claude, Gemini, OpenAI, and Mistral integration
-- Legal-BERT Embeddings: Specialized legal language model for semantic understanding
-- Vector Similarity Search: BigQuery-powered regulation retrieval using cosine similarity
-- Risk Assessment: Automated categorization and scoring of compliance risks
-- Cloud-Native: Built on Google Cloud Platform for scalability
-- Modern UI: Next.js 14 with TypeScript, Tailwind CSS, and Shadcn UI components
+## Current System Specifications
+
+**Architecture**: Full-stack web application with API integration
+**Frontend**: Next.js 14 with TypeScript, Tailwind CSS, and Shadcn UI
+**Backend**: Python FastAPI with AI integration
+**Status**: ✅ Fully integrated and operational
+
+### ✅ **Implemented Features:**
+- **FastAPI Backend Integration**: Complete Python backend with CORS support
+- **Multi-LLM Support**: Claude, Gemini, OpenAI, and Mistral integration
+- **Document Processing Pipeline**: PDF extraction, AI analysis, and compliance verification
+- **Real-time Upload System**: File upload with progress tracking and error handling
+- **Health Monitoring**: Backend connectivity status and performance tracking
+- **Risk Assessment Engine**: Automated categorization and scoring of compliance risks
+- **Modern React UI**: Next.js 14 with TypeScript, Tailwind CSS, and Shadcn UI components
+- **Error Recovery**: Comprehensive error handling with graceful fallbacks
+- **Export System**: JSON, CSV, and PDF report generation
+- **Performance Monitoring**: Memory usage tracking and optimization
 
 ## Key Dependencies and Environment Setup
 
-Install dependencies with:
+## Technical Stack (September 2025)
+
+### Frontend Dependencies
 ```bash
+# Install frontend dependencies
+cd Frontend
 npm install
-# or
-yarn install
-# or
-pnpm install
 ```
 
-Key dependencies include:
-- `next` 14 with App Router
-- `react` 18 with hooks
-- `tailwindcss` for styling
+**Core Technologies:**
+- `next` 14.2.18 with App Router
+- `react` 18 with hooks and concurrent features
+- `typescript` 5+ for type safety
+- `tailwindcss` for utility-first styling
 - `@radix-ui` primitives for accessible components
-- `lucide-react` for icons
+- `@tanstack/react-query` for server state management
+- `axios` for HTTP client with interceptors
 - `recharts` for data visualization
+- `gsap` for animations
+- `lucide-react` for icons
+
+### Backend Dependencies
+```bash
+# Install backend dependencies
+cd Backend
+pip install -r requirements.txt
+```
+
+**Core Technologies:**
+- `fastapi` for high-performance async API
+- `uvicorn` for ASGI server
+- `python-multipart` for file upload handling
+- `google-generativeai` for Gemini integration
+- `python-dotenv` for environment management
+- `pydantic` for data validation
+
+## Current Environment Configuration
+
+### Frontend (.env.local) - ACTIVE
+```bash
+# API Integration - FastAPI Backend
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_USE_MOCK_API=false
+
+# Feature Flags - All Enabled
+NEXT_PUBLIC_ENABLE_ANALYTICS=true
+NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+
+# Performance Settings
+NEXT_PUBLIC_API_TIMEOUT=300000
+NEXT_PUBLIC_API_RETRY_ATTEMPTS=3
+```
+
+### Backend (.env) - ACTIVE
+```bash
+# AI Integration - Gemini API
+GEMINI_API_KEY=AIzaSyAYtSrjgOLzEqQ_1cpuynDj9Qq9HtMBMfQ
+GEMINI_API_KEY_2=AIzaSyAQNDuTkz68R4gLiI5jJYX0G8km2SFKUvM
+```
+
+## Server Status (Current)
+
+### ✅ Frontend Server
+- **URL**: http://localhost:3001
+- **Status**: Running and responding
+- **Features**: All components operational
+- **CORS**: Configured for backend communication
+
+### ✅ Backend Server  
+- **URL**: http://127.0.0.1:8000
+- **Status**: Running with auto-reload
+- **API Docs**: http://127.0.0.1:8000/docs
+- **Health Check**: http://127.0.0.1:8000/health
+- **CORS**: Enabled for localhost:3001
+
+### ✅ Integration Status
+- **API Communication**: Fully operational
+- **File Upload**: Working with progress tracking
+- **Error Handling**: 422 and 500 errors properly handled
+- **Health Monitoring**: Real-time backend status
+- **Document Processing**: Gemini AI integration active
 - `gsap` for animations
 - `@tanstack/react-query` for data fetching
 - `react-hook-form` for form handling

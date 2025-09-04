@@ -6,6 +6,10 @@ This module provides functionality to verify compliance using the Mistral LLM.
 
 from src.llm_provider.safe_json_helper import safe_json_response
 from mistralai.client import MistralClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def verify_with_mistral(system_prompt: str, user_prompt: str) -> dict:
     """
@@ -16,7 +20,7 @@ def verify_with_mistral(system_prompt: str, user_prompt: str) -> dict:
     Returns:
         dict: The verification result from the LLM.
     """
-    llm_client = MistralClient(api_key="MISTRAL_KEY")
+    llm_client = MistralClient(api_key=os.getenv("MISTRAL_API_KEY"))
 
     response = llm_client.chat(
         model="mistral-large",

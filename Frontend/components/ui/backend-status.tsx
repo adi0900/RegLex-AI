@@ -44,26 +44,14 @@ export function BackendStatus({ className, showDetails = false }: BackendStatusP
         return
       }
 
-      // Try to connect to real backend
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      // Try to connect to real backend using FastAPI service
+      const healthData = await complianceAPI.healthCheck()
       
-      const response = await fetch(`${APP_CONFIG.API_URL}/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal
-      })
-      
-      clearTimeout(timeoutId)
-
-      if (response.ok) {
-        const healthData = await response.json()
+      if (healthData.status === 'healthy') {
         setBackendInfo(healthData)
         setStatus('connected')
       } else {
-        throw new Error(`Backend returned ${response.status}`)
+        throw new Error(`Backend unhealthy: ${healthData.message}`)
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'

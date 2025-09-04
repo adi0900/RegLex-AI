@@ -5,7 +5,11 @@ This module provides functionality to verify compliance using the OpenAI LLM.
 """
 
 import json
+import os
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def verify_with_openai(system_prompt: str, user_prompt: str) -> dict:
     """
@@ -16,7 +20,7 @@ def verify_with_openai(system_prompt: str, user_prompt: str) -> dict:
     Returns:
         dict: The verification result from the LLM.
     """
-    llm_client = OpenAI(api_key="OPENAI_KEY")
+    llm_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     response = llm_client.chat.completions.create(
         model="gpt-4o-mini",
