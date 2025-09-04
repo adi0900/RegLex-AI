@@ -10,7 +10,6 @@ import type {
   ComplianceVerificationRequest, 
   ComplianceVerificationResponse,
   ComplianceResult,
-  ClauseInput,
   RiskAssessment,
   MatchedRule
 } from '@/lib/api'
@@ -23,15 +22,25 @@ const FASTAPI_TIMEOUT = APP_CONFIG.API_TIMEOUT
 const fastapiClient = axios.create({
   baseURL: FASTAPI_BASE_URL,
   timeout: FASTAPI_TIMEOUT,
-  headers: {
-    'Accept': 'application/json'
-  }
+  // Don't set default headers here - let each request set its own headers
 })
 
 // Request interceptor for FastAPI
 fastapiClient.interceptors.request.use(
   (config) => {
     console.log(`🚀 FastAPI Request: ${config.method?.toUpperCase()} ${config.url}`)
+    console.log(`📋 Headers:`, config.headers)
+    console.log(`📤 Data type:`, typeof config.data)
+    if (config.data instanceof FormData) {
+      console.log(`📁 FormData entries:`)
+      for (let [key, value] of config.data.entries()) {
+        if (value instanceof File) {
+          console.log(`  ${key}: File(name="${value.name}", size=${value.size}, type="${value.type}")`)
+        } else {
+          console.log(`  ${key}: ${value}`)
+        }
+      }
+    }
     return config
   },
   (error) => Promise.reject(error)
@@ -137,7 +146,10 @@ export class FastAPIService {
       
       const response = await retryFastapiRequest(() =>
         fastapiClient.get<FastAPIHealthResponse>('/health', {
-          timeout: 10000 // 10 second timeout for health checks
+          timeout: 10000, // 10 second timeout for health checks
+          headers: {
+            'Accept': 'application/json'
+          }
         })
       )
       
@@ -190,7 +202,11 @@ export class FastAPIService {
       console.log('ℹ️ FastAPI API Info - Calling backend root endpoint')
       
       const response = await retryFastapiRequest(() =>
-        fastapiClient.get<FastAPIRootResponse>('/')
+        fastapiClient.get<FastAPIRootResponse>('/', {
+          headers: {
+            'Accept': 'application/json'
+          }
+        })
       )
       
       return response.data
@@ -240,17 +256,38 @@ export class FastAPIService {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('lang', language)
+      
+      // Debug logging
+      console.log('📋 FormData Debug:', {
+        fileSize: file.size,
+        fileType: file.type,
+        fileName: file.name,
+        language: language,
+        formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
+          key,
+          valueType: typeof value,
+          valueName: value instanceof File ? value.name : 'non-file'
+        }))
+      })
 
       const response = await retryFastapiRequest(() =>
         fastapiClient.post<FastAPIUploadResponse>('/upload-pdf/', formData, {
-          // Don't set Content-Type manually - let browser set multipart boundary
+          headers: {
+            // Let browser set Content-Type with proper multipart/form-data boundary
+            'Accept': 'application/json',
+          },
           timeout: FASTAPI_TIMEOUT,
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total && onProgress) {
               const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total)
               onProgress(percentage)
             }
-          }
+          },
+          // Ensure proper request configuration
+          validateStatus: (status) => status < 500, // Accept all status codes below 500 for proper error handling
+          
+          // Make sure we don't override the Content-Type that axios sets automatically for FormData
+          transformRequest: [(data) => data], // Pass FormData through unchanged
         })
       )
 
@@ -308,7 +345,17 @@ export class FastAPIService {
           case 400:
             throw new Error(`Invalid request: ${errorData?.detail || 'Bad request'}`)
           case 422:
-            throw new Error(`Validation error: ${errorData?.detail || 'Invalid file or parameters'}`)
+            // Handle 422 validation errors with more specific messaging
+            if (Array.isArray(errorData?.detail)) {
+              const validationErrors = errorData.detail.map((err: any) => 
+                `${err.loc?.join('.') || 'field'}: ${err.msg || 'validation failed'}`
+              ).join(', ')
+              throw new Error(`Validation errors: ${validationErrors}`)
+            } else if (typeof errorData?.detail === 'string') {
+              throw new Error(`Validation error: ${errorData.detail}`)
+            } else {
+              throw new Error('File validation failed. Please ensure you are uploading a valid PDF file.')
+            }
           case 500:
             throw new Error(`Backend processing error: ${errorData?.detail || 'Internal server error'}`)
           default:
@@ -515,7 +562,7 @@ export class FastAPIService {
    * Delete Document - For now delegates to mock service  
    * TODO: Implement proper delete functionality with backend
    */
-  static deleteDocument(documentId: string) {
+  static deleteDocument(_documentId: string) {
     console.log('🗑️ FastAPI Service - Delete document (using mock implementation)')
     // TODO: Implement proper delete functionality with FastAPI backend
     throw new Error('Delete functionality not yet implemented for FastAPIService')

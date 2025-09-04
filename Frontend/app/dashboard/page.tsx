@@ -1361,16 +1361,17 @@ export default function DashboardPage() {
                         Upload Documents
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Upload legal documents for compliance verification
+                        Upload PDF documents for SEBI compliance verification
                       </p>
                     </CardHeader>
                     <CardContent>
                       <FileUpload
                         maxFiles={5}
                         maxSize={10 * 1024 * 1024}
-                        acceptedTypes={['.pdf', '.docx', '.txt']}
+                        acceptedTypes={['.pdf']}
                         onFileSelect={handleFileSelect}
                         onUploadComplete={handleUploadComplete}
+                        language="en"
                       />
                     </CardContent>
                   </Card>
@@ -1700,10 +1701,12 @@ export default function DashboardPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          {analysisResults?.actionItems?.map((action: string, idx: number) => (
+                          {analysisResults?.actionItems?.map((action: any, idx: number) => (
                             <div key={idx} className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg">
                               <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                              <span className="text-sm">{action}</span>
+                              <span className="text-sm">
+                                {typeof action === 'string' ? action : action?.title || action?.description || 'Action item'}
+                              </span>
                             </div>
                           ))}
                         </div>

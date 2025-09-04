@@ -4,7 +4,7 @@ export const APP_CONFIG = {
   USE_MOCK_API: process.env.NEXT_PUBLIC_USE_MOCK_API === 'true',
   
   // API Configuration
-  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000',
+  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8002',
   API_TIMEOUT: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000'),
   API_RETRY_ATTEMPTS: parseInt(process.env.NEXT_PUBLIC_API_RETRY_ATTEMPTS || '3'),
   API_RETRY_DELAY: parseInt(process.env.NEXT_PUBLIC_API_RETRY_DELAY || '1000'),

@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosResponse } from 'axios'
-import { APP_CONFIG, isOfflineMode, getApiConfig } from '@/lib/config'
+import { APP_CONFIG, getApiConfig } from '@/lib/config'
 import { FastAPIService } from '@/lib/fastapi-services'
 
 // Get API configuration from environment
@@ -226,7 +226,6 @@ export const complianceAPI = {
     const uploadResult = await FastAPIService.uploadDocument(file, lang, onProgress)
     
     // Process and enhance the FastAPI response
-    const complianceResults = uploadResult.compliance_results || {}
     const clauses = uploadResult.clauses || []
     const totalClauses = clauses.length
     

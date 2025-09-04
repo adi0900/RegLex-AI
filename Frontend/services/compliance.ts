@@ -1,11 +1,10 @@
 'use server'
 
-import { APP_CONFIG, isOfflineMode } from '@/lib/config'
+import { APP_CONFIG } from '@/lib/config'
 import { FastAPIService } from '@/lib/fastapi-services'
 import type { 
   ComplianceVerificationRequest, 
-  ComplianceVerificationResponse,
-  ComplianceResult
+  ComplianceVerificationResponse
 } from '@/lib/api'
 
 /**

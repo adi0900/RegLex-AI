@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { Badge } from './badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip'
 import { CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react'
-import { FastAPIService } from '@/lib/fastapi-client'
+import { FastAPIService } from '@/lib/fastapi-services'
 
 interface FastAPIStatusProps {
   showDetails?: boolean
@@ -23,27 +23,20 @@ export function FastAPIStatus({ showDetails = false, checkInterval = 30000 }: Fa
     const checkStatus = async () => {
       setStatus('checking')
       try {
-        // Use the enhanced connection detection
-        const isAvailable = await FastAPIService.testConnection()
-        if (isAvailable) {
-          // Try to get actual health data
-          try {
-            const health = await FastAPIService.healthCheck()
-            if (health.status === 'healthy') {
-              setStatus('online')
-              setError('')
-            } else {
-              setStatus('error')
-              setError('Backend reporting unhealthy status')
-            }
-          } catch {
-            // Connection works but health endpoint might be different
+        // Direct health check with FastAPI backend
+        try {
+          const health = await FastAPIService.healthCheck()
+          if (health.status === 'healthy') {
             setStatus('online')
             setError('')
+          } else {
+            setStatus('error')
+            setError(`Backend status: ${health.status}`)
           }
-        } else {
+        } catch (healthError) {
+          // If health check fails, backend might be offline
           setStatus('offline')
-          setError('Backend not reachable')
+          setError('FastAPI backend not responding')
         }
       } catch (err) {
         setStatus('offline')
@@ -89,36 +82,6 @@ export function FastAPIStatus({ showDetails = false, checkInterval = 30000 }: Fa
     }
   }
 
-  const tooltipContent = (
-    <div className="space-y-2 max-w-xs">
-      <div className="font-medium">FastAPI Backend Status</div>
-      <div className="text-sm">
-        Status: {getStatusText()}
-      </div>
-      {lastCheck && (
-        <div className="text-xs text-muted-foreground">
-          Last checked: {lastCheck.toLocaleTimeString()}
-        </div>
-      )}
-      {error && (
-        <div className="text-xs text-red-600">
-          Error: {error}
-        </div>
-      )}
-      <div className="text-xs text-muted-foreground">
-        Endpoint: http://127.0.0.1:8000
-      </div>
-      {status === 'offline' && (
-        <div className="text-xs bg-yellow-50 p-2 rounded border border-yellow-200">
-          <div className="font-medium text-yellow-800">To start backend:</div>
-          <code className="text-xs text-yellow-700">python c:\Users\adi14\Downloads\run_pipeline.py</code>
-          <div className="mt-1 text-yellow-600">
-            Using mock data for development
-          </div>
-        </div>
-      )}
-    </div>
-  )
 
   if (showDetails) {
     return (
@@ -151,7 +114,34 @@ export function FastAPIStatus({ showDetails = false, checkInterval = 30000 }: Fa
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="bottom" align="end">
-          {tooltipContent}
+          <div className="space-y-2 max-w-xs">
+            <div className="font-medium">FastAPI Backend Status</div>
+            <div className="text-sm">
+              Status: {getStatusText()}
+            </div>
+            {lastCheck && (
+              <div className="text-xs text-muted-foreground">
+                Last checked: {lastCheck.toLocaleTimeString()}
+              </div>
+            )}
+            {error && (
+              <div className="text-xs text-red-600">
+                Error: {error}
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground">
+              Endpoint: http://127.0.0.1:8002
+            </div>
+            {status === 'offline' && (
+              <div className="text-xs bg-yellow-50 p-2 rounded border border-yellow-200">
+                <div className="font-medium text-yellow-800">To start backend:</div>
+                <code className="text-xs text-yellow-700">cd Backend && python app.py dev</code>
+                <div className="mt-1 text-yellow-600">
+                  Backend should be running on port 8002
+                </div>
+              </div>
+            )}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
