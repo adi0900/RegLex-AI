@@ -540,6 +540,46 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Next.js** and **FastAPI** for excellent frameworks
 - **Shadcn UI** for beautiful, accessible components
 
+## 👥 Team
+
+The RegLex AI project was developed by a talented team of professionals:
+
+### Core Development Team
+
+**Aditya** - *Frontend Developer & Team Leader*
+- Leading frontend development and project management
+- Specializes in React, Next.js, and TypeScript
+- Contact: adi1423tya@gmail.com
+
+**Nilam** - *Lead AI Engineer & Backend Developer*
+- Expert in Machine Learning & NLP systems
+- Specialized in legal-domain AI and language model fine-tuning
+- Backend architecture and AI pipeline implementation
+
+**Suriya** - *AI/ML Developer*
+- Risk Assessment & Analysis specialist
+- Former SEBI officer with deep regulatory knowledge
+- Compliance analysis and risk modeling
+
+**Ivan Nilesh** - *AI/ML Developer*
+- Machine Learning algorithms and model development
+- Data processing and AI optimization
+- Backend ML pipeline implementation
+
+**Vrithika** - *AI/ML Developer*
+- Data Science and AI model optimization
+- Data analysis and machine learning research
+- Model performance analysis and improvement
+
+### Project Contact
+- **Email**: adi1423tya@gmail.com
+- **Phone**: +91-9695882854
+- **Location**: Jaipur, India
+
+---
+
+**Built with ❤️ by the RegLex AI Team - September 2025**
+
 ## 📞 Support
 
 For support and questions:
