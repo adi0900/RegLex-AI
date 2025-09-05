@@ -656,25 +656,39 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {[
             {
-              name: "Dr. Sarah Chen",
-              role: "Chief Legal Officer",
-              expertise: "SEBI Regulations & Compliance",
-              description: "15+ years experience in securities law and regulatory compliance",
-              image: "👩‍⚖️"
-            },
-            {
-              name: "Raj Patel",
-              role: "Lead AI Engineer",
-              expertise: "Machine Learning & NLP",
-              description: "Expert in legal-domain AI systems and language model fine-tuning",
+              name: "Aditya",
+              role: "Frontend Developer & Team Leader",
+              expertise: "Frontend Development",
+              description: "Leading the frontend development and project management for RegLex AI",
               image: "👨‍💻"
             },
             {
-              name: "Dr. Priya Sharma",
-              role: "Compliance Specialist",
+              name: "Nilam",
+              role: "Lead AI Engineer & Backend Dev",
+              expertise: "Machine Learning & NLP",
+              description: "Expert in legal-domain AI systems and language model fine-tuning",
+              image: "👩‍⚖️"
+            },
+            {
+              name: "Suriya",
+              role: "AI/ML Developer",
               expertise: "Risk Assessment & Analysis",
               description: "Former SEBI officer with deep regulatory knowledge",
               image: "👩‍💼"
+            },
+            {
+              name: "Ivan Nilesh",
+              role: "AI/ML Developer",
+              expertise: "Machine Learning",
+              description: "Specialized in AI/ML algorithms and model development",
+              image: "👨‍💻"
+            },
+            {
+              name: "Vrithika",
+              role: "AI/ML Developer",
+              expertise: "Data Science",
+              description: "Focused on data analysis and AI model optimization",
+              image: "👩‍💻"
             }
           ].map((member, index) => (
             <motion.div
