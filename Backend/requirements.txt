@@ -22,3 +22,5 @@ umap-learn
 python-multipart
 streamlit
 fastapi
+google-cloud-storage==2.14.0
+uvicorn

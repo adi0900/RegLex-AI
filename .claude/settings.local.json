@@ -23,7 +23,12 @@
       "Bash(npm run type-check:*)",
       "Bash(tasklist:*)",
       "Bash(cmd /c:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(wmic process where ProcessId=45032 get CommandLine:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run lint)",
+      "Bash(npx next lint:*)"
     ],
     "deny": [],
     "ask": []
