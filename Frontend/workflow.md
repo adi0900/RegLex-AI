@@ -351,7 +351,6 @@ async def endpoint_function(param: ParamType = Depends()):
 ### File Documentation
 - **README.md**: Project overview and setup
 - **API-Documentation.md**: Complete API reference
-- **CLAUDE.md**: AI assistant guidance
 - **workflow.md**: Development processes (this file)
 
 ## 🔍 Monitoring and Maintenance

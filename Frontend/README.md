@@ -298,7 +298,6 @@ SEBI-HACK/
 │   └── README.md                     # Frontend documentation
 │
 ├── docs/                             # Project documentation
-│   ├── CLAUDE.md                     # Claude Code guidance
 │   ├── QWEN.md                       # Qwen Code guidance
 │   ├── plan.md                       # Development roadmap
 │   └── README.md                     # This file
