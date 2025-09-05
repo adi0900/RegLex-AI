@@ -75,6 +75,8 @@ export default function DashboardPage() {
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
 
+      console.log('🔗 Connecting to backend:', apiUrl)
+
       // Test connectivity first
       const healthResponse = await fetch(`${apiUrl}/health`)
       if (!healthResponse.ok) {

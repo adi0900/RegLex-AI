@@ -1,152 +1,252 @@
-# RegLex AI - Deployment Guide
+# Deployment Guide for SEBI Compliance System
 
-## 🚀 Quick Deploy to Vercel
+This guide provides comprehensive deployment instructions for hosting the SEBI Compliance Verification System on various platforms.
 
-### Frontend Deployment (Next.js)
+## 🚀 Vercel Deployment (Recommended)
 
-1. **Fork/Clone this repository** to your GitHub account
-2. **Connect to Vercel:**
+### Prerequisites
+- GitHub account
+- Vercel account (free tier available)
+- Google Gemini API keys
+- GCP credentials (optional, for full functionality)
+
+### Backend Deployment
+
+#### Step 1: Prepare Backend for Vercel
+```bash
+# The backend is already configured with:
+# - vercel.json for Vercel configuration
+# - api/index.py for Vercel serverless functions
+# - requirements.txt with all dependencies
+```
+
+#### Step 2: Deploy Backend
+1. **Create New Project:**
    - Go to [vercel.com](https://vercel.com)
    - Click "New Project"
-   - Import this GitHub repository
-   - Set the **root directory** to `Frontend`
+   - Import from GitHub
+   - Select your repository
+   - Set **Root Directory:** `Backend`
 
-3. **Environment Variables in Vercel:**
+2. **Configure Build Settings:**
+   - **Framework Preset:** Python
+   - **Root Directory:** Backend
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Output Directory:** (leave empty)
+
+3. **Environment Variables:**
+   ```
+   ENVIRONMENT=production
+   GEMINI_API_KEY=your_actual_gemini_key
+   GEMINI_API_KEY_2=your_backup_gemini_key
+   GCS_BUCKET_NAME=your_gcp_bucket (optional)
+   GOOGLE_APPLICATION_CREDENTIALS={"type":"service_account",...} (optional)
+   FRONTEND_URL=https://your-frontend-url.vercel.app
+   ```
+
+4. **Deploy:** Click "Deploy"
+5. **Get Backend URL:** `https://your-project-name.vercel.app`
+
+### Frontend Deployment
+
+#### Step 1: Deploy Frontend
+1. **Create New Project:**
+   - Click "New Project" in Vercel
+   - Import from GitHub (same repository)
+   - Set **Root Directory:** `Frontend`
+
+2. **Configure Build Settings:**
+   - **Framework Preset:** Next.js (auto-detected)
+   - **Root Directory:** Frontend
+
+3. **Environment Variables:**
    ```
    NEXT_PUBLIC_API_URL=https://your-backend-url.vercel.app
-   GEMINI_API_KEY=your_gemini_api_key_here
-   GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
+   NEXT_PUBLIC_USE_MOCK_API=false
+   NEXT_PUBLIC_ENABLE_ANALYTICS=true
+   NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+   NEXT_PUBLIC_API_TIMEOUT=300000
    ```
 
-4. **Deploy:** Vercel will automatically build and deploy your frontend
+4. **Deploy:** Click "Deploy"
 
-### Backend Deployment Options
+## 🔧 Troubleshooting Vercel Deployment
 
-#### Option 1: Vercel (Serverless Functions)
-- Create a new Vercel project for the `Backend` folder
-- Add the same environment variables as above
-- Vercel will automatically detect and deploy FastAPI
+### Common Issues and Solutions
 
-#### Option 2: Railway/Render
-- Connect your GitHub repository
-- Set the build command: `pip install -r Backend/requirements.txt`
-- Set the start command: `python Backend/app.py`
+#### 1. CORS Errors
+**Problem:** Frontend can't connect to backend
+**Solution:**
+- Ensure `FRONTEND_URL` is set in backend environment variables
+- Check that CORS origins include your Vercel domains
+- Redeploy both frontend and backend after configuration changes
 
-#### Option 3: Google Cloud Run
+#### 2. API Connection Issues
+**Problem:** Frontend shows "Failed to fetch" errors
+**Solution:**
+- Verify `NEXT_PUBLIC_API_URL` is correctly set
+- Check backend is deployed and accessible
+- Ensure backend environment variables are properly configured
+
+#### 3. Build Failures
+**Problem:** Vercel build fails
+**Solutions:**
+- Check build logs in Vercel dashboard
+- Ensure all dependencies are in requirements.txt
+- Verify Python version compatibility (3.11 recommended)
+
+#### 4. Environment Variables Not Working
+**Problem:** API keys or configuration not applied
+**Solution:**
+- Redeploy after adding environment variables
+- Check variable names match exactly
+- Ensure sensitive data is properly formatted (JSON for GCP credentials)
+
+#### 5. Cold Start Issues
+**Problem:** First request takes too long
+**Solution:**
+- This is normal for serverless functions
+- Consider upgrading to Vercel Pro for better performance
+- Implement caching strategies in your application
+
+### Testing Deployment
+
+#### Health Check
 ```bash
-# Build and deploy to Cloud Run
-cd Backend
-gcloud run deploy reglex-api \
-  --source . \
+# Test backend health
+curl https://your-backend-url.vercel.app/health
+
+# Expected response:
+{"status":"healthy","message":"SEBI Compliance Backend is operational"}
+```
+
+#### API Connectivity Test
+```bash
+# Test frontend to backend connection
+curl https://your-frontend-url.vercel.app/api/test
+
+# Should return API data without CORS errors
+```
+
+#### Full System Test
+1. Visit your frontend URL
+2. Open browser developer tools (F12)
+3. Check Network tab for API calls
+4. Verify no CORS errors in Console
+
+## 🌐 Alternative Deployment Options
+
+### Railway (Easy Alternative)
+
+#### Backend Deployment:
+1. Go to [railway.app](https://railway.app)
+2. Connect GitHub repository
+3. Set root directory to `Backend`
+4. Railway auto-detects FastAPI
+5. Add environment variables
+6. Deploy
+
+#### Frontend Deployment:
+1. Use Vercel (recommended) or Railway
+2. Set `NEXT_PUBLIC_API_URL` to Railway backend URL
+
+### Render (Free Tier Available)
+
+#### Backend Deployment:
+1. Go to [render.com](https://render.com)
+2. Create "Web Service" from GitHub
+3. Set build command: `pip install -r requirements.txt`
+4. Set start command: `uvicorn src.pipeline.run_pipeline:app --host 0.0.0.0 --port $PORT`
+5. Add environment variables
+6. Deploy
+
+### Google Cloud Run (For GCP Integration)
+
+#### Backend Deployment:
+```bash
+# Build and deploy
+gcloud run deploy sebi-backend \
+  --source Backend \
   --platform managed \
   --region us-central1 \
-  --allow-unauthenticated
+  --allow-unauthenticated \
+  --set-env-vars GEMINI_API_KEY=your_key
 ```
 
-## 📋 Pre-deployment Checklist
+## 🔒 Security Considerations
 
-### 1. Environment Setup
-- [ ] Get Gemini API keys from [Google AI Studio](https://makersuite.google.com/app/apikey)
-- [ ] Set up Google Cloud Storage (optional, for document storage)
-- [ ] Create `.env` files based on `.env.example`
+### Environment Variables
+- Never commit API keys to GitHub
+- Use Vercel's/Railway's environment variable system
+- Rotate API keys regularly
+- Use different keys for development/production
 
-### 2. Frontend Configuration
-- [ ] Update `NEXT_PUBLIC_API_URL` to your backend URL
-- [ ] Test build locally: `cd Frontend && npm run build`
-- [ ] Verify all environment variables are set
+### CORS Configuration
+- Only allow necessary origins
+- Use specific domains instead of wildcards in production
+- Regularly review and update allowed origins
 
-### 3. Backend Configuration
-- [ ] Install dependencies: `pip install -r Backend/requirements.txt`
-- [ ] Test locally: `python Backend/app.py dev`
-- [ ] Ensure all API endpoints are working
+### API Security
+- Implement rate limiting if needed
+- Monitor API usage and errors
+- Use HTTPS in production (automatic on Vercel)
+- Consider API authentication for sensitive endpoints
 
-## 🏗️ Project Structure
+## 📊 Performance Optimization
 
-```
-RegLex-AI/
-├── Frontend/           # Next.js 14 application
-│   ├── app/           # App router pages
-│   ├── components/    # UI components
-│   ├── public/        # Static assets
-│   └── package.json   # Frontend dependencies
-├── Backend/           # FastAPI application
-│   ├── src/          # Source code
-│   ├── app.py        # Main application
-│   └── requirements.txt
-├── vercel.json       # Vercel configuration
-└── DEPLOYMENT.md     # This file
-```
+### Vercel-Specific Optimizations
+- Use Vercel's analytics to monitor performance
+- Implement proper caching strategies
+- Optimize bundle size with code splitting
+- Use Vercel's edge functions for better performance
 
-## 🔧 Local Development
+### Database Considerations
+- For production use, consider a proper database
+- Implement connection pooling
+- Use caching layers (Redis) for frequently accessed data
 
-### Frontend (Next.js)
-```bash
-cd Frontend
-npm install
-npm run dev  # http://localhost:3001
-```
+## 🔄 Updates and Maintenance
 
-### Backend (FastAPI)
-```bash
-cd Backend
-pip install -r requirements.txt
-python app.py dev  # http://127.0.0.1:8000
-```
+### Updating Deployments
+1. Push changes to GitHub main branch
+2. Vercel automatically redeploys (if auto-deploy enabled)
+3. Monitor deployment logs for any issues
+4. Test functionality after deployment
 
-## 📝 Environment Variables Reference
+### Monitoring
+- Use Vercel's deployment logs
+- Monitor API response times
+- Set up alerts for failed deployments
+- Regularly check CORS and connectivity
 
-### Frontend (.env.local)
-```env
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-NEXT_PUBLIC_USE_MOCK_API=false
-NEXT_PUBLIC_ENABLE_ANALYTICS=true
-NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
-NEXT_PUBLIC_API_TIMEOUT=300000
-```
+## 📞 Support and Resources
 
-### Backend (.env)
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
-```
+### Vercel Resources
+- [Vercel Documentation](https://vercel.com/docs)
+- [Python on Vercel](https://vercel.com/docs/concepts/functions/serverless-functions/runtimes/python)
+- [Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables)
 
-## 🔍 Troubleshooting
+### FastAPI Resources
+- [FastAPI Deployment](https://fastapi.tiangolo.com/deployment/)
+- [CORS Documentation](https://fastapi.tiangolo.com/tutorial/cors/)
 
-### Common Issues
+### Troubleshooting
+- Check Vercel function logs
+- Use browser developer tools
+- Test API endpoints directly
+- Verify environment variable configuration
 
-1. **CORS Errors:**
-   - Ensure backend includes frontend URL in CORS origins
-   - Check `run_pipeline.py:88-98` for CORS configuration
+## 🎯 Quick Deployment Checklist
 
-2. **API Connection Issues:**
-   - Verify `NEXT_PUBLIC_API_URL` points to correct backend
-   - Ensure backend is accessible from frontend domain
-
-3. **Build Failures:**
-   - Check all environment variables are set
-   - Run `npm run build` locally to test
-
-4. **Gemini API Errors:**
-   - Verify API keys are valid and have quota
-   - Check rate limits in Google Cloud Console
-
-## 📊 Features
-
-- ✅ Document upload and analysis
-- ✅ SEBI compliance checking
-- ✅ Real-time processing updates
-- ✅ Interactive dashboard
-- ✅ Export functionality (JSON, CSV, PDF)
-- ✅ Multi-LLM support (Gemini, OpenAI, Claude)
-- ✅ Google Cloud Storage integration
-
-## 🔐 Security Notes
-
-- Never commit API keys to repository
-- Use environment variables for all sensitive data
-- Enable HTTPS in production
-- Implement rate limiting for API endpoints
+- [ ] Fork/clone repository to GitHub
+- [ ] Set up Vercel account
+- [ ] Deploy backend first with environment variables
+- [ ] Get backend URL
+- [ ] Deploy frontend with backend URL
+- [ ] Update CORS configuration
+- [ ] Test full system functionality
+- [ ] Monitor performance and errors
 
 ---
 
-For support, create an issue in the GitHub repository.
+**Need help?** Check the logs in your Vercel dashboard or refer to the troubleshooting section above.

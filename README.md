@@ -329,14 +329,41 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
 
 ### Quick Deploy to Vercel
 
-#### Frontend Deployment (Next.js)
-1. **Fork/Clone** this repository to your GitHub account
-2. **Connect to Vercel:**
+#### Step 1: Deploy Backend First
+1. **Create Backend Project:**
    - Go to [vercel.com](https://vercel.com)
    - Click "New Project" → Import from GitHub
    - Select this repository
+   - Set **root directory** to `Backend`
+
+2. **Configure Backend:**
+   - **Framework Preset:** Python
+   - **Root Directory:** Backend
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Install Command:** `pip install -r requirements.txt`
+
+3. **Add Backend Environment Variables:**
+   ```
+   ENVIRONMENT=production
+   GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
+   GCS_BUCKET_NAME=your_gcp_bucket_name
+   GOOGLE_APPLICATION_CREDENTIALS={"type":"service_account","project_id":"..."}
+   ```
+
+4. **Deploy Backend:** Get the backend URL (e.g., `https://sebi-backend.vercel.app`)
+
+#### Step 2: Deploy Frontend
+1. **Create Frontend Project:**
+   - Click "New Project" → Import from GitHub
+   - Select this repository
    - Set **root directory** to `Frontend`
-3. **Add Environment Variables in Vercel:**
+
+2. **Configure Frontend:**
+   - **Framework Preset:** Next.js
+   - **Root Directory:** Frontend
+
+3. **Add Frontend Environment Variables:**
    ```
    NEXT_PUBLIC_API_URL=https://your-backend-url.vercel.app
    NEXT_PUBLIC_USE_MOCK_API=false
@@ -344,17 +371,17 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
    NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
    NEXT_PUBLIC_API_TIMEOUT=300000
    ```
-4. **Deploy:** Vercel automatically builds and deploys
 
-#### Backend Deployment (FastAPI)
-1. **Create separate Vercel project** for the backend
-2. **Set root directory** to `Backend`
-3. **Add Environment Variables:**
-   ```
-   GEMINI_API_KEY=your_gemini_api_key_here
-   GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
-   ```
-4. **Deploy:** Vercel handles Python/FastAPI automatically
+4. **Deploy Frontend:** Vercel automatically builds and deploys
+
+#### Step 3: Update CORS (Important!)
+After deployment, update your backend's CORS configuration to allow your frontend domain:
+
+1. Go to your backend Vercel project
+2. Add environment variable: `FRONTEND_URL=https://your-frontend-url.vercel.app`
+3. Redeploy backend
+
+**Note:** Replace `your-backend-url.vercel.app` and `your-frontend-url.vercel.app` with your actual Vercel URLs.
 
 #### Alternative Backend Hosting
 - **Railway:** Connect GitHub, auto-detects FastAPI

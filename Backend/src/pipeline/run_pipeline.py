@@ -81,18 +81,42 @@ app = FastAPI(
 )
 
 # Add CORS middleware for frontend integration
+# Get environment and configure origins
+environment = os.getenv("ENVIRONMENT", "production")
+frontend_url = os.getenv("FRONTEND_URL", "")
+
+cors_origins = [
+    # Local development
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    # Vercel deployments (wildcard patterns)
+    "*.vercel.app",
+    "https://*.vercel.app",
+    "http://*.vercel.app",
+    # Production domains
+    "https://sebi-compliance-frontend.vercel.app",
+    "https://sebi-compliance-backend.vercel.app",
+]
+
+# Add custom frontend URL if provided
+if frontend_url:
+    cors_origins.append(frontend_url)
+
+# Allow all origins in development mode or if no specific origins configured
+if environment == "development" or not cors_origins:
+    cors_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001", 
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001"
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+logger.info(f"[CORS] Configured origins: {cors_origins}")
 
 @app.get("/")
 async def root():
@@ -1118,7 +1142,20 @@ async def health_check():
         "message": "SEBI Compliance Backend is operational",
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0",
-        "uptime": "Service running normally"
+        "uptime": "Service running normally",
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "cors_origins": cors_origins
+    }
+
+@app.get("/test")
+async def test_endpoint():
+    """Test endpoint for deployment verification"""
+    return {
+        "message": "Backend deployment test successful",
+        "timestamp": datetime.now().isoformat(),
+        "gcp_configured": bool(os.getenv("GCS_BUCKET_NAME")),
+        "gemini_configured": bool(os.getenv("GEMINI_API_KEY")),
+        "environment": os.getenv("ENVIRONMENT", "development")
     }
 
 if __name__ == "__main__":
