@@ -88,3 +88,27 @@ dist/
 # Cache files
 *.cache
 .cache/
+
+# Vercel
+.vercel
+
+# Environment variables
+.env
+Backend/.env
+Backend/src/.env
+
+# Debug files
+Backend/debug_*.json
+Backend/debug_*.txt
+
+# Google Cloud credentials
+*.json
+!package*.json
+!tsconfig*.json
+!vercel.json
+service-account*.json
+gcp-credentials*.json
+
+# TypeScript
+*.tsbuildinfo
+Frontend/tsconfig.tsbuildinfo

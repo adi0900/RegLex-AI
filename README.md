@@ -327,6 +327,30 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
 
 ## 🚀 Deployment
 
+### Quick Deploy to Vercel
+
+#### Frontend Deployment (Next.js)
+1. **Fork/Clone** this repository to your GitHub account
+2. **Connect to Vercel:**
+   - Go to [vercel.com](https://vercel.com)
+   - Click "New Project" → Import from GitHub
+   - Select this repository
+   - Set **root directory** to `Frontend`
+3. **Add Environment Variables in Vercel:**
+   ```
+   NEXT_PUBLIC_API_URL=https://your-backend-url.vercel.app
+   GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
+   ```
+4. **Deploy:** Vercel automatically builds and deploys
+
+#### Backend Deployment Options
+- **Vercel:** Create new project for `Backend` folder
+- **Railway/Render:** Connect GitHub, set build/start commands
+- **Google Cloud Run:** `gcloud run deploy --source Backend`
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment guide.
+
 ### Development
 ```bash
 # Terminal 1 - Backend with GCP

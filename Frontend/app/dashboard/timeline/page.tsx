@@ -1,110 +1,62 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useQuery } from '@tanstack/react-query'
-import { complianceAPI } from '@/lib/api'
-import { Calendar, Clock, FileText, AlertTriangle, CheckCircle, Filter, ArrowRight } from 'lucide-react'
+import { Calendar, Clock, FileText, AlertTriangle, CheckCircle, Filter, ArrowRight, RefreshCw, Loader2 } from 'lucide-react'
 
 interface TimelineEvent {
   id: string
-  type: 'document' | 'compliance' | 'risk' | 'system'
+  type: 'upload' | 'processing' | 'completed' | 'document' | 'compliance' | 'risk' | 'system'
   title: string
   description: string
   timestamp: string
-  status: 'completed' | 'in-progress' | 'pending' | 'failed'
-  metadata?: {
-    documentName?: string
-    complianceScore?: number
-    riskLevel?: string
-    details?: string
-  }
+  status: 'completed' | 'processing' | 'pending' | 'failed'
+  documentId?: string
 }
 
 export default function TimelinePage() {
   const [filterType, setFilterType] = useState<string>('all')
   const [timeRange, setTimeRange] = useState<string>('7d')
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const { data: analytics } = useQuery({
-    queryKey: ['analytics'],
-    queryFn: complianceAPI.getAnalytics,
-  })
+  // Fetch timeline events from API
+  const fetchTimelineEvents = async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-  // Mock timeline data - this would come from your backend in a real app
-  const [timelineEvents] = useState<TimelineEvent[]>([
-    {
-      id: '1',
-      type: 'document',
-      title: 'Document Processing Completed',
-      description: 'Successfully processed and analyzed Investment Policy 2025.pdf',
-      timestamp: '2025-09-03T14:30:00Z',
-      status: 'completed',
-      metadata: {
-        documentName: 'Investment Policy 2025.pdf',
-        complianceScore: 87,
-        riskLevel: 'medium'
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const response = await fetch(`${apiUrl}/api/dashboard/timeline`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch timeline events: ${response.status} ${response.statusText}`)
       }
-    },
-    {
-      id: '2',
-      type: 'compliance',
-      title: 'High Risk Clause Identified',
-      description: 'Clause 12.3 flagged for potential SEBI compliance violation',
-      timestamp: '2025-09-03T14:25:00Z',
-      status: 'completed',
-      metadata: {
-        documentName: 'Investment Policy 2025.pdf',
-        riskLevel: 'high',
-        details: 'Section related to fund allocation may not comply with SEBI guidelines'
+      
+      const result = await response.json()
+      if (result.status === 'success') {
+        setTimelineEvents(result.data || [])
+      } else {
+        throw new Error(result.message || 'Failed to fetch timeline events')
       }
-    },
-    {
-      id: '3',
-      type: 'document',
-      title: 'Document Upload Started',
-      description: 'Beginning analysis of Investment Policy 2025.pdf',
-      timestamp: '2025-09-03T14:20:00Z',
-      status: 'completed',
-      metadata: {
-        documentName: 'Investment Policy 2025.pdf'
-      }
-    },
-    {
-      id: '4',
-      type: 'system',
-      title: 'FastAPI Backend Connected',
-      description: 'Successfully established connection to backend processing service',
-      timestamp: '2025-09-03T12:00:00Z',
-      status: 'completed'
-    },
-    {
-      id: '5',
-      type: 'document',
-      title: 'Document Processing Failed',
-      description: 'Failed to process Contract Draft.pdf due to invalid format',
-      timestamp: '2025-09-03T11:45:00Z',
-      status: 'failed',
-      metadata: {
-        documentName: 'Contract Draft.pdf',
-        details: 'File format not supported or corrupted'
-      }
-    },
-    {
-      id: '6',
-      type: 'compliance',
-      title: 'Compliance Score Updated',
-      description: 'Overall compliance score improved to 94%',
-      timestamp: '2025-09-03T10:30:00Z',
-      status: 'completed',
-      metadata: {
-        complianceScore: 94
-      }
+    } catch (err) {
+      console.error('Error fetching timeline events:', err)
+      setError(err instanceof Error ? err.message : 'An error occurred while fetching timeline events')
+    } finally {
+      setLoading(false)
     }
-  ])
+  }
+
+  // Load timeline events on component mount
+  useEffect(() => {
+    fetchTimelineEvents()
+  }, [])
+
 
   const getIcon = (type: string, status: string) => {
     if (status === 'failed') {
@@ -167,12 +119,22 @@ export default function TimelinePage() {
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Calendar className="h-8 w-8" />
             Timeline
+            {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
           </h1>
           <p className="text-muted-foreground">
-            Track all document processing and compliance activities
+            Track all document processing and compliance activities from GCS
           </p>
+          {error && (
+            <p className="text-red-600 dark:text-red-400 text-sm mt-2">
+              {error}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
+          <Button onClick={fetchTimelineEvents} variant="outline" disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger className="w-32">
               <Clock className="h-4 w-4 mr-2" />
@@ -203,12 +165,20 @@ export default function TimelinePage() {
         </TabsList>
 
         <TabsContent value={filterType} className="mt-6">
-          <div className="relative">
-            {/* Timeline Line */}
-            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border" />
-            
-            <div className="space-y-6">
-              {filteredEvents.map((event, index) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading timeline events from GCS...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              {/* Timeline Line */}
+              <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border" />
+              
+              <div className="space-y-6">
+                {filteredEvents.length > 0 ? filteredEvents.map((event) => (
                 <div key={event.id} className="relative flex items-start gap-6">
                   {/* Timeline Dot */}
                   <div className="relative z-10 flex-shrink-0">
@@ -236,60 +206,27 @@ export default function TimelinePage() {
                         {event.description}
                       </p>
                       
-                      {/* Metadata */}
-                      {event.metadata && (
-                        <div className="space-y-2">
-                          {event.metadata.documentName && (
-                            <div className="flex items-center gap-2 text-xs">
-                              <FileText className="h-3 w-3" />
-                              <span className="font-medium">Document:</span>
-                              <span>{event.metadata.documentName}</span>
-                            </div>
-                          )}
-                          {event.metadata.complianceScore !== undefined && (
-                            <div className="flex items-center gap-2 text-xs">
-                              <CheckCircle className="h-3 w-3" />
-                              <span className="font-medium">Compliance Score:</span>
-                              <Badge variant="outline">{event.metadata.complianceScore}%</Badge>
-                            </div>
-                          )}
-                          {event.metadata.riskLevel && (
-                            <div className="flex items-center gap-2 text-xs">
-                              <AlertTriangle className="h-3 w-3" />
-                              <span className="font-medium">Risk Level:</span>
-                              <Badge 
-                                variant={
-                                  event.metadata.riskLevel === 'high' ? 'destructive' :
-                                  event.metadata.riskLevel === 'medium' ? 'secondary' : 'default'
-                                }
-                              >
-                                {event.metadata.riskLevel}
-                              </Badge>
-                            </div>
-                          )}
-                          {event.metadata.details && (
-                            <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
-                              <span className="font-medium">Details:</span> {event.metadata.details}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 </div>
-              ))}
-            </div>
-
-            {filteredEvents.length === 0 && (
-              <div className="text-center py-12">
-                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No events found</h3>
-                <p className="text-muted-foreground">
-                  No timeline events match the current filter criteria.
-                </p>
+                )) : (
+                  <div className="text-center py-12">
+                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">No events found</h3>
+                    <p className="text-muted-foreground">
+                      {error ? 'Unable to load timeline events from GCS' : 'No timeline events match the current filter criteria.'}
+                    </p>
+                    {error && (
+                      <Button variant="outline" className="mt-4" onClick={fetchTimelineEvents}>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Try Again
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { safeLocalStorage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -78,8 +77,8 @@ export default function AnalysisResultPage() {
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
 
-        // Use the real-time analysis endpoint
-        const response = await fetch(`${apiUrl}/api/dashboard/analyze/${params.id}`)
+        // Use the document analysis endpoint  
+        const response = await fetch(`${apiUrl}/api/dashboard/analysis/${params.id}`)
 
         if (response.ok) {
           const apiData = await response.json()
@@ -88,55 +87,52 @@ export default function AnalysisResultPage() {
           if (apiData.status === 'success' && apiData.data) {
             const data = apiData.data
 
-            // Convert backend compliance analysis to frontend format
-            const complianceAnalysis = data.compliance_analysis || {}
-            const riskAssessment = data.risk_assessment || {}
-            const detailedResults = data.detailed_results || {}
+            // Convert backend analysis data to frontend format  
+            const clauses = data.clauses || []
 
-            // Convert verification results to clause format
-            const convertedClauses = detailedResults.verification_results?.map((result: any, index: number) => {
-              const riskExplanation = detailedResults.risk_explanations?.[index] || {}
-
+            // Convert clauses to expected format
+            const convertedClauses = clauses.map((clause: any, index: number) => {
               return {
-                id: `clause_${index + 1}`,
-                text: result.clause_text || result.text || `Clause ${index + 1}`,
-                riskLevel: riskExplanation.severity?.toLowerCase() || (result.is_compliant ? 'compliant' : 'medium'),
-                regulation: riskExplanation.rule || 'SEBI Regulations',
-                recommendation: riskExplanation.mitigation || riskExplanation.recommendation || 'Review clause for compliance',
-                confidence: Math.round((result.confidence_score || 0.85) * 100),
-                isCompliant: result.is_compliant || false,
-                riskScore: riskExplanation.score || 0,
-                category: riskExplanation.category || 'General',
-                impact: riskExplanation.impact || 'No specific impact identified'
+                id: clause.id || `clause_${index + 1}`,
+                text: clause.text || `Clause ${index + 1}`,
+                riskLevel: clause.riskLevel || (clause.isCompliant ? 'none' : 'medium'),
+                regulation: clause.category || 'SEBI Regulations',
+                recommendation: clause.mitigation || clause.explanation || 'Review clause for compliance', 
+                confidence: Math.round((clause.confidenceScore || 0.85) * 100),
+                isCompliant: clause.isCompliant || false,
+                riskScore: clause.riskScore || 0,
+                category: clause.category || 'General',
+                impact: clause.impact || 'No specific impact identified'
               }
             }) || []
 
             setResult({
-              id: data.document_id || params.id,
-              documentName: data.filename || 'Unknown Document',
-              uploadedAt: data.uploaded_at || new Date().toISOString(),
-              analyzedAt: data.analysis_timestamp || new Date().toISOString(),
-              totalClauses: complianceAnalysis.total_clauses || 0,
-              compliantClauses: complianceAnalysis.compliant_clauses || 0,
-              highRiskClauses: complianceAnalysis.high_risk_clauses || 0,
-              mediumRiskClauses: complianceAnalysis.medium_risk_clauses || 0,
-              lowRiskClauses: complianceAnalysis.low_risk_clauses || 0,
-              overallScore: complianceAnalysis.compliance_rate || 0,
-              llmProvider: 'Real-time Compliance Analysis',
-              processingTime: 1000, // Real-time analysis time
+              id: data.id || params.id,
+              documentName: data.fileName || 'Unknown Document',
+              uploadedAt: data.uploadedAt || new Date().toISOString(),
+              analyzedAt: data.processedAt || new Date().toISOString(),
+              totalClauses: data.totalClauses || 0,
+              compliantClauses: data.compliantClauses || 0, 
+              highRiskClauses: data.highRiskClauses || 0,
+              mediumRiskClauses: data.mediumRiskClauses || 0,
+              lowRiskClauses: data.lowRiskClauses || 0,
+              overallScore: data.overallScore || 0,
+              llmProvider: data.language || 'GCP Analysis',
+              processingTime: 2500, // Standard processing time
               clauses: convertedClauses,
               summary: {
-                complianceRate: complianceAnalysis.compliance_rate || 0,
-                riskLevel: riskAssessment.risk_level || 'Unknown',
-                totalClausesAnalyzed: complianceAnalysis.total_clauses || 0,
-                riskScore: riskAssessment.overall_risk_score || 0
+                complianceRate: data.complianceRate || data.overallScore || 0,
+                riskLevel: data.riskLevel || 'medium',
+                totalClausesAnalyzed: data.totalClauses || 0,
+                riskScore: Math.round((100 - (data.overallScore || 50)) / 10)
               },
-              recommendations: detailedResults.risk_explanations?.map((risk: any) => ({
-                type: risk.severity || 'Medium',
-                title: risk.title || 'Compliance Recommendation',
-                description: risk.mitigation || risk.description || 'Review for compliance',
-                priority: risk.severity === 'High' ? 'high' : risk.severity === 'Medium' ? 'medium' : 'low'
-              })) || []
+              recommendations: clauses.filter((clause: any) => clause.mitigation)
+                .map((clause: any) => ({
+                  type: clause.riskLevel || 'medium',
+                  title: `${clause.category} Compliance Issue`,
+                  description: clause.mitigation || clause.explanation || 'Review for compliance',
+                  priority: clause.riskLevel === 'high' ? 'high' : clause.riskLevel === 'medium' ? 'medium' : 'low'
+                })) || []
             })
 
             console.log('Successfully loaded real-time analysis data')
@@ -339,77 +335,117 @@ export default function AnalysisResultPage() {
                 </TabsList>
                 
                 <TabsContent value="clauses" className="space-y-6">
-                  {result.clauses.map((clause, index) => (
-                    <motion.div
-                      key={clause.id}
-                      className="border rounded-lg p-4 space-y-4"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <p className="text-sm font-medium">Clause {index + 1}</p>
-                            {clause.isCompliant !== undefined && (
-                              <Badge variant={clause.isCompliant ? "default" : "destructive"}>
-                                {clause.isCompliant ? "✓ Compliant" : "✗ Non-compliant"}
+                  {result.clauses && result.clauses.length > 0 ? (
+                    result.clauses.map((clause, index) => (
+                      <motion.div
+                        key={clause.id}
+                        className="border rounded-lg p-4 space-y-4"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <p className="text-sm font-medium">Clause {index + 1}</p>
+                              {clause.isCompliant !== undefined && (
+                                <Badge variant={clause.isCompliant ? "default" : "destructive"}>
+                                  {clause.isCompliant ? "✓ Compliant" : "✗ Non-compliant"}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                              {clause.text}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={getRiskBadgeColor(clause.riskLevel)}>
+                              {getRiskIcon(clause.riskLevel)}
+                              {clause.riskLevel}
+                            </Badge>
+                            {clause.riskScore !== undefined && clause.riskScore > 0 && (
+                              <Badge variant="secondary">
+                                Risk Score: {clause.riskScore}
                               </Badge>
                             )}
-                          </div>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                            {clause.text}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={getRiskBadgeColor(clause.riskLevel)}>
-                            {getRiskIcon(clause.riskLevel)}
-                            {clause.riskLevel}
-                          </Badge>
-                          {clause.riskScore !== undefined && clause.riskScore > 0 && (
-                            <Badge variant="secondary">
-                              Risk Score: {clause.riskScore}
+                            <Badge variant="outline">
+                              {clause.confidence}% confidence
                             </Badge>
-                          )}
-                          <Badge variant="outline">
-                            {clause.confidence}% confidence
-                          </Badge>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium mb-1">Related Regulation</p>
-                          <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            {clause.regulation}
-                            <ExternalLink className="h-3 w-3" />
-                          </p>
-                          {clause.category && (
-                            <div className="mt-2">
-                              <p className="text-sm font-medium mb-1">Category</p>
-                              <Badge variant="outline" className="text-xs">
-                                {clause.category}
-                              </Badge>
-                            </div>
-                          )}
+                        
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm font-medium mb-1">Related Regulation</p>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              {clause.regulation}
+                              <ExternalLink className="h-3 w-3" />
+                            </p>
+                            {clause.category && (
+                              <div className="mt-2">
+                                <p className="text-sm font-medium mb-1">Category</p>
+                                <Badge variant="outline" className="text-xs">
+                                  {clause.category}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium mb-1">Recommendation</p>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {clause.recommendation}
+                            </p>
+                            {clause.impact && (
+                              <div>
+                                <p className="text-sm font-medium mb-1">Impact Assessment</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {clause.impact}
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium mb-1">Recommendation</p>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {clause.recommendation}
-                          </p>
-                          {clause.impact && (
-                            <div>
-                              <p className="text-sm font-medium mb-1">Impact Assessment</p>
-                              <p className="text-xs text-muted-foreground">
-                                {clause.impact}
-                              </p>
-                            </div>
-                          )}
+                      </motion.div>
+                    ))
+                  ) : (
+                    <Card>
+                      <CardContent className="p-8">
+                        <div className="text-center space-y-4">
+                          <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto" />
+                          <div>
+                            <h3 className="text-lg font-medium">No Clauses Analyzed</h3>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              This document processing encountered an issue during clause extraction. 
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Document Status: {result.summary?.riskLevel || 'Processing incomplete'}
+                            </p>
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                // Trigger reprocessing - would need backend endpoint
+                                console.log('Reprocess document:', result.id)
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Request Reprocessing
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => router.push('/dashboard/documents')}
+                            >
+                              <ArrowLeft className="h-4 w-4 mr-2" />
+                              View All Documents
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
                 
                 <TabsContent value="summary" className="space-y-4">

@@ -23,6 +23,26 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def clean_json_string(json_str: str) -> str:
+    """Clean JSON string by removing invalid control characters and fixing common issues"""
+    # Remove markdown code blocks
+    json_str = json_str.replace("```json", "").replace("```", "").strip()
+    
+    # Remove or replace control characters (except \n, \r, \t which are valid in JSON strings)
+    # Control characters are chars 0-31 except \t (9), \n (10), \r (13)
+    import string
+    valid_chars = string.printable + '\n\r\t'
+    cleaned = ''.join(char if char in valid_chars else ' ' for char in json_str)
+    
+    # Fix common JSON issues
+    # Remove trailing commas before closing brackets/braces
+    cleaned = re.sub(r',\s*([}\]])', r'\1', cleaned)
+    
+    # Remove any non-printable characters that might remain
+    cleaned = ''.join(char if ord(char) >= 32 or char in '\n\r\t' else ' ' for char in cleaned)
+    
+    return cleaned.strip()
+
 # Add project root to path
 
 @asynccontextmanager
@@ -149,56 +169,88 @@ async def run_backend(file: UploadFile = File(...), lang: Optional[str] = Form(N
 
         # Case 2: summary is string with JSON content
         elif isinstance(summary, str):
-            with open("debug_summary.json", "w") as f:
+            # Save original summary for debugging
+            with open("debug_summary_original.json", "w", encoding='utf-8') as f:
                 f.write(summary)
 
-            clean_json = summary.replace("```json", "").replace("```", "").strip()
+            # Clean the JSON string
+            clean_json = clean_json_string(summary)
+            
+            # Save cleaned JSON for debugging
+            with open("debug_summary_cleaned.json", "w", encoding='utf-8') as f:
+                f.write(clean_json)
 
             try:
                 data = json.loads(clean_json)
+                logger.info("[JSON] Successfully parsed JSON response")
             except json.JSONDecodeError as e:
-                print("JSON parsing failed:", e)
-                raise
+                logger.error(f"[JSON] JSON parsing failed even after cleaning: {e}")
+                logger.error(f"[JSON] Error at position {e.pos}: '{clean_json[max(0, e.pos-10):e.pos+10]}'")
+                
+                # Create a minimal fallback structure
+                logger.warning("[JSON] Creating fallback JSON structure")
+                data = {
+                    "Summary": "Error parsing LLM response - using fallback structure",
+                    "Clauses": [],
+                    "processing_error": str(e),
+                    "original_response_length": len(summary)
+                }
             
         else:
             raise TypeError(f"Unexpected summary type: {type(summary)}")
             
         clauses = data.get("Clauses", [])
-        print(f"[COMPLIANCE] Processing {len(clauses)} clauses for compliance checking")
+        logger.info(f"[COMPLIANCE] Processing {len(clauses)} clauses for compliance checking")
         
         # Initialize compliance agent and perform compliance checking
         try:
-            compliance_agent = ComplianceAgent(llm_client="gemini")
-            compliance_results = compliance_agent.ensure_compliance(clauses)
-            logger.info(f"[COMPLIANCE] Successfully completed compliance checking for {len(clauses)} clauses")
-            
-            # Extract compliance statistics
-            verification_results = compliance_results.get("verification_results", [])
-            risk_explanations = compliance_results.get("risk_explanations", [])
-            
-            # Calculate compliance metrics
-            total_clauses = len(verification_results)
-            compliant_count = sum(1 for result in verification_results if result.get("is_compliant", False))
-            non_compliant_count = total_clauses - compliant_count
-            
-            # Calculate risk distribution
-            high_risk_count = sum(1 for risk in risk_explanations if risk and risk.get("severity") == "High")
-            medium_risk_count = sum(1 for risk in risk_explanations if risk and risk.get("severity") == "Medium")
-            low_risk_count = sum(1 for risk in risk_explanations if risk and risk.get("severity") == "Low")
-            
-            # Enhanced compliance results with statistics
-            compliance_results = {
-                **compliance_results,
-                "compliance_stats": {
-                    "total_clauses": total_clauses,
-                    "compliant_count": compliant_count,
-                    "non_compliant_count": non_compliant_count,
-                    "high_risk_count": high_risk_count,
-                    "medium_risk_count": medium_risk_count,
-                    "low_risk_count": low_risk_count,
-                    "compliance_rate": round((compliant_count / total_clauses * 100), 2) if total_clauses > 0 else 0
+            if len(clauses) == 0:
+                logger.warning("[COMPLIANCE] No clauses found to process, creating minimal compliance result")
+                compliance_results = {
+                    "verification_results": [],
+                    "risk_explanations": [],
+                    "compliance_stats": {
+                        "total_clauses": 0,
+                        "compliant_count": 0,
+                        "non_compliant_count": 0,
+                        "high_risk_count": 0,
+                        "medium_risk_count": 0,
+                        "low_risk_count": 0,
+                        "compliance_rate": 0
+                    }
                 }
-            }
+            else:
+                compliance_agent = ComplianceAgent(llm_client="gemini")
+                compliance_results = compliance_agent.ensure_compliance(clauses)
+                logger.info(f"[COMPLIANCE] Successfully completed compliance checking for {len(clauses)} clauses")
+                
+                # Extract compliance statistics
+                verification_results = compliance_results.get("verification_results", [])
+                risk_explanations = compliance_results.get("risk_explanations", [])
+                
+                # Calculate compliance metrics
+                total_clauses = len(verification_results)
+                compliant_count = sum(1 for result in verification_results if result.get("is_compliant", False))
+                non_compliant_count = total_clauses - compliant_count
+                
+                # Calculate risk distribution
+                high_risk_count = sum(1 for risk in risk_explanations if risk and risk.get("severity") == "High")
+                medium_risk_count = sum(1 for risk in risk_explanations if risk and risk.get("severity") == "Medium")
+                low_risk_count = sum(1 for risk in risk_explanations if risk and risk.get("severity") == "Low")
+                
+                # Enhanced compliance results with statistics
+                compliance_results = {
+                    **compliance_results,
+                    "compliance_stats": {
+                        "total_clauses": total_clauses,
+                        "compliant_count": compliant_count,
+                        "non_compliant_count": non_compliant_count,
+                        "high_risk_count": high_risk_count,
+                        "medium_risk_count": medium_risk_count,
+                        "low_risk_count": low_risk_count,
+                        "compliance_rate": round((compliant_count / total_clauses * 100), 2) if total_clauses > 0 else 0
+                    }
+                }
             
         except Exception as e:
             logger.error(f"[COMPLIANCE] Error during compliance checking: {e}")

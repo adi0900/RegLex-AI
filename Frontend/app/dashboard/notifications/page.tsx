@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Bell, AlertCircle, CheckCircle, Info, Settings, X } from 'lucide-react'
+import { Bell, AlertCircle, CheckCircle, Info, Settings, X, RefreshCw, Loader2 } from 'lucide-react'
 
 interface Notification {
   id: string
@@ -15,48 +15,14 @@ interface Notification {
   message: string
   timestamp: string
   read: boolean
-  category: 'compliance' | 'system' | 'document' | 'general'
+  priority: 'high' | 'medium' | 'low'
+  documentId?: string
 }
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'warning',
-      title: 'High Risk Clause Detected',
-      message: 'Document "Investment Policy 2025.pdf" contains clauses with high compliance risk. Review required.',
-      timestamp: '2025-09-03T14:30:00Z',
-      read: false,
-      category: 'compliance'
-    },
-    {
-      id: '2',
-      type: 'success',
-      title: 'Document Processing Complete',
-      message: 'Successfully analyzed "Financial Report Q3.pdf" - 98% compliance score achieved.',
-      timestamp: '2025-09-03T13:15:00Z',
-      read: true,
-      category: 'document'
-    },
-    {
-      id: '3',
-      type: 'info',
-      title: 'System Update',
-      message: 'FastAPI backend connection established. All features are now available.',
-      timestamp: '2025-09-03T12:00:00Z',
-      read: true,
-      category: 'system'
-    },
-    {
-      id: '4',
-      type: 'error',
-      title: 'Processing Failed',
-      message: 'Failed to process "Contract Draft.pdf" - invalid file format detected.',
-      timestamp: '2025-09-03T11:45:00Z',
-      read: false,
-      category: 'document'
-    }
-  ])
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [settings, setSettings] = useState({
     emailNotifications: true,
@@ -67,10 +33,65 @@ export default function NotificationsPage() {
     weeklyReports: true
   })
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    )
+  // Fetch notifications from API
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const response = await fetch(`${apiUrl}/api/dashboard/notifications`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch notifications: ${response.status} ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      if (result.status === 'success') {
+        setNotifications(result.data || [])
+      } else {
+        throw new Error(result.message || 'Failed to fetch notifications')
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err)
+      setError(err instanceof Error ? err.message : 'An error occurred while fetching notifications')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load notifications on component mount
+  useEffect(() => {
+    fetchNotifications()
+  }, [])
+
+  const markAsRead = async (id: string) => {
+    try {
+      // Update local state immediately
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, read: true } : n)
+      )
+      
+      // Send API request to mark as read
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const response = await fetch(`${apiUrl}/api/dashboard/notifications/${id}/read`, {
+        method: 'PUT',
+      })
+      
+      if (!response.ok) {
+        // Revert local state if API call fails
+        setNotifications(prev =>
+          prev.map(n => n.id === id ? { ...n, read: false } : n)
+        )
+        console.error('Failed to mark notification as read')
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error)
+      // Revert local state if API call fails
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, read: false } : n)
+      )
+    }
   }
 
   const markAllAsRead = () => {
@@ -120,6 +141,7 @@ export default function NotificationsPage() {
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Bell className="h-8 w-8" />
             Notifications
+            {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
             {unreadCount > 0 && (
               <Badge variant="destructive" className="ml-2">
                 {unreadCount}
@@ -127,14 +149,25 @@ export default function NotificationsPage() {
             )}
           </h1>
           <p className="text-muted-foreground">
-            Stay updated on compliance status and system events
+            Stay updated on compliance status and system events from GCS
           </p>
+          {error && (
+            <p className="text-red-600 dark:text-red-400 text-sm mt-2">
+              {error}
+            </p>
+          )}
         </div>
-        {unreadCount > 0 && (
-          <Button onClick={markAllAsRead} variant="outline">
-            Mark all as read
+        <div className="flex gap-2">
+          <Button onClick={fetchNotifications} variant="outline" disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
-        )}
+          {unreadCount > 0 && (
+            <Button onClick={markAllAsRead} variant="outline">
+              Mark all as read
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="all" className="w-full">
@@ -149,8 +182,16 @@ export default function NotificationsPage() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          <div className="space-y-2">
-            {notifications.map((notification) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading notifications from GCS...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notifications.length > 0 ? notifications.map((notification) => (
               <Card 
                 key={notification.id} 
                 className={`transition-colors ${!notification.read ? 'border-primary/50 bg-primary/5' : ''}`}
@@ -166,7 +207,7 @@ export default function NotificationsPage() {
                             {notification.type}
                           </Badge>
                           <Badge variant="outline" className="text-xs">
-                            {notification.category}
+                            {notification.priority}
                           </Badge>
                           {!notification.read && (
                             <div className="h-2 w-2 bg-primary rounded-full" />
@@ -201,8 +242,15 @@ export default function NotificationsPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+              )) : (
+                <div className="text-center py-12">
+                  <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <p className="text-muted-foreground mb-2">No notifications found</p>
+                  <p className="text-xs text-muted-foreground">Process documents to receive notifications</p>
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="unread" className="space-y-4">
@@ -259,7 +307,7 @@ export default function NotificationsPage() {
 
         <TabsContent value="compliance" className="space-y-4">
           <div className="space-y-2">
-            {notifications.filter(n => n.category === 'compliance').map((notification) => (
+            {notifications.filter(n => n.priority === 'high' && n.type === 'warning').map((notification) => (
               <Card key={notification.id} className={!notification.read ? 'border-primary/50 bg-primary/5' : ''}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
@@ -292,7 +340,7 @@ export default function NotificationsPage() {
 
         <TabsContent value="system" className="space-y-4">
           <div className="space-y-2">
-            {notifications.filter(n => n.category === 'system').map((notification) => (
+            {notifications.filter(n => n.type === 'info').map((notification) => (
               <Card key={notification.id} className={!notification.read ? 'border-primary/50 bg-primary/5' : ''}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">

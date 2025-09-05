@@ -66,9 +66,19 @@ export default function OverviewPage() {
     lastUpdated: null
   })
 
-  // Comprehensive fetch function for all dashboard data
-  const fetchDashboardData = async () => {
+  // Optimized fetch function for dashboard data - avoid unnecessary reloads
+  const fetchDashboardData = async (forceRefresh = false) => {
     try {
+      // Skip if data is already loaded and not forcing refresh
+      if (!forceRefresh && dashboardData.lastUpdated && dashboardData.analytics && !dashboardData.isLoading) {
+        const timeSinceLastUpdate = Date.now() - dashboardData.lastUpdated.getTime()
+        // Only refresh if data is older than 5 minutes
+        if (timeSinceLastUpdate < 5 * 60 * 1000) {
+          console.log('Using cached dashboard data')
+          return
+        }
+      }
+
       setDashboardData(prev => ({ ...prev, isLoading: true, error: null }))
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
@@ -94,6 +104,8 @@ export default function OverviewPage() {
       const notificationsData = await notificationsResponse.json()
       const timelineData = await timelineResponse.json()
       const analyticsData = await analyticsResponse.json()
+
+      console.log('Analytics data received:', analyticsData.data)
 
       setDashboardData({
         overview: overviewData.data || overviewData,
@@ -150,7 +162,7 @@ export default function OverviewPage() {
         </div>
         
         <div className="flex items-center gap-4">
-          <Button onClick={fetchDashboardData} size="sm" disabled={isLoading} variant="outline">
+          <Button onClick={() => fetchDashboardData(true)} size="sm" disabled={isLoading} variant="outline">
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             {isLoading ? 'Loading...' : 'Refresh'}
           </Button>
@@ -182,7 +194,7 @@ export default function OverviewPage() {
                     {error}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchDashboardData} className="ml-auto">
+                <Button variant="outline" size="sm" onClick={() => fetchDashboardData(true)} className="ml-auto">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Try Again
                 </Button>
@@ -307,7 +319,7 @@ export default function OverviewPage() {
                   Generate Reports
                 </Button>
               </Link>
-              <Button variant="outline" className="w-full justify-start" onClick={fetchDashboardData}>
+              <Button variant="outline" className="w-full justify-start" onClick={() => fetchDashboardData(true)}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh Data
               </Button>
@@ -341,25 +353,33 @@ export default function OverviewPage() {
               </div>
             ) : analytics?.complianceTrend && analytics.complianceTrend.length > 0 ? (
               <div className="space-y-4">
-                <div className="h-64 flex items-end justify-between gap-2">
-                  {analytics.complianceTrend.map((point, index) => (
-                    <div key={index} className="flex flex-col items-center flex-1">
-                      <div 
-                        className="bg-blue-500 rounded-t-sm transition-all duration-300 hover:bg-blue-600"
-                        style={{
-                          height: `${(point.score / 100) * 200}px`,
-                          minHeight: '4px'
-                        }}
-                        title={`${point.score}% on ${point.date}`}
-                      />
-                      <div className="text-xs text-muted-foreground mt-1 rotate-45 origin-left">
-                        {new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                <div className="h-64 flex items-end justify-between gap-2 px-4">
+                  {analytics.complianceTrend.map((point, index) => {
+                    const heightPercentage = Math.max((point.score / 100) * 100, 2) // Ensure minimum 2% height
+                    const barHeight = Math.max((heightPercentage / 100) * 200, 8) // Minimum 8px height
+                    
+                    return (
+                      <div key={index} className="flex flex-col items-center flex-1 max-w-16">
+                        <div className="text-xs font-medium text-center mb-1">
+                          {point.score}%
+                        </div>
+                        <div 
+                          className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-sm transition-all duration-300 hover:from-blue-600 hover:to-blue-500 cursor-pointer shadow-sm"
+                          style={{
+                            height: `${barHeight}px`,
+                            minHeight: '8px'
+                          }}
+                          title={`${point.score}% compliance on ${point.date}`}
+                        />
+                        <div className="text-xs text-muted-foreground mt-2 text-center">
+                          {new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Last 7 days</span>
+                <div className="flex items-center justify-between text-sm border-t pt-3">
+                  <span className="text-muted-foreground">Last 7 days trend</span>
                   <span className="font-medium">
                     Current: {analytics.complianceTrend[analytics.complianceTrend.length - 1]?.score || 0}%
                   </span>

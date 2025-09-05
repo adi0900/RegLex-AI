@@ -1,39 +1,52 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useQuery } from '@tanstack/react-query'
-import { complianceAPI } from '@/lib/api'
 import { Download, FileText, Filter, Calendar, BarChart3 } from 'lucide-react'
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState('compliance')
   const [timeRange, setTimeRange] = useState('30d')
   const [exportLoading, setExportLoading] = useState(false)
+  const [gcpReports, setGcpReports] = useState([])
+  const [reportsLoading, setReportsLoading] = useState(true)
 
-  const { data: analytics } = useQuery({
-    queryKey: ['analytics'],
-    queryFn: complianceAPI.getAnalytics,
-  })
-
-  const { data: gcpReports, isLoading: reportsLoading } = useQuery({
-    queryKey: ['gcp-reports'],
-    queryFn: async () => {
+  // Fetch reports from API
+  const fetchReports = async () => {
+    try {
+      setReportsLoading(true)
+      
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
       const response = await fetch(`${apiUrl}/api/dashboard/reports`)
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch reports')
+        throw new Error(`Failed to fetch reports: ${response.status} ${response.statusText}`)
       }
+      
       const result = await response.json()
-      return result.data || []
-    },
-  })
+      if (result.status === 'success') {
+        setGcpReports(result.data || [])
+      } else {
+        throw new Error(result.message || 'Failed to fetch reports')
+      }
+    } catch (err) {
+      console.error('Error fetching reports:', err)
+      setGcpReports([])
+    } finally {
+      setReportsLoading(false)
+    }
+  }
 
-  const handleExportReport = async (format: 'pdf' | 'csv' | 'json', reportType?: string) => {
+  // Load reports on component mount
+  React.useEffect(() => {
+    fetchReports()
+  }, [])
+
+  const handleExportReport = async (format: 'csv' | 'json', reportType?: string) => {
     setExportLoading(true)
     try {
       let exportData
@@ -75,12 +88,44 @@ export default function ReportsPage() {
         exportData = result.data
       } else {
         // Fallback to basic export
-        exportData = complianceAPI.exportData()
+        exportData = { message: 'No data available for export' }
         filename = `compliance-report-${new Date().toISOString().split('T')[0]}`
       }
       
       if (format === 'json') {
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        // Enhanced JSON export with metadata
+        const enhancedExportData = {
+          metadata: {
+            report_type: reportType || 'compliance',
+            generated_at: new Date().toISOString(),
+            generated_by: 'SEBI Compliance System',
+            version: '1.0.0',
+            data_source: 'GCP Cloud Storage',
+            total_documents: exportData.documents?.length || 0,
+            export_format: 'json'
+          },
+          ...exportData,
+          analytics: reportType === 'compliance' && exportData.documents ? {
+            processing_success_rate: ((exportData.documents.filter((d: any) => d.clauses_analyzed > 0).length / exportData.documents.length) * 100).toFixed(1) + '%',
+            average_compliance_rate: (exportData.documents.reduce((sum: number, doc: any) => {
+              return sum + (doc.clauses_analyzed > 0 ? (doc.compliant_clauses / doc.clauses_analyzed) : 0)
+            }, 0) / exportData.documents.length * 100).toFixed(1) + '%',
+            risk_distribution: {
+              high: exportData.documents.filter((d: any) => d.risk_level === 'high').length,
+              medium: exportData.documents.filter((d: any) => d.risk_level === 'medium').length,
+              low: exportData.documents.filter((d: any) => d.risk_level === 'low').length
+            },
+            total_clauses_processed: exportData.documents.reduce((sum: number, doc: any) => sum + (doc.clauses_analyzed || 0), 0),
+            total_violations: exportData.documents.reduce((sum: number, doc: any) => sum + (doc.violations?.length || 0), 0),
+            documents_by_status: {
+              completed: exportData.documents.filter((d: any) => d.status === 'completed').length,
+              processing: exportData.documents.filter((d: any) => d.status === 'processing').length,
+              failed: exportData.documents.filter((d: any) => d.status === 'failed').length
+            }
+          } : undefined
+        }
+        
+        const blob = new Blob([JSON.stringify(enhancedExportData, null, 2)], {
           type: 'application/json'
         })
         const url = URL.createObjectURL(blob)
@@ -91,8 +136,6 @@ export default function ReportsPage() {
         URL.revokeObjectURL(url)
       } else if (format === 'csv') {
         await exportToCSV(exportData, filename, reportType)
-      } else if (format === 'pdf') {
-        await exportToPDF(exportData, filename, reportType)
       }
     } catch (error) {
       console.error('Export failed:', error)
@@ -107,40 +150,106 @@ export default function ReportsPage() {
       let csvContent = ''
 
       if (reportType === 'compliance' && data.documents) {
-        // Compliance reports CSV
-        csvContent = 'Document ID,Filename,Upload Date,Compliance Status,Risk Level,Clauses Analyzed,Compliant Clauses,Violations Count\n'
+        // Enhanced compliance reports CSV with detailed analysis
+        csvContent = 'Document ID,Filename,Upload Date,File Size,Compliance Status,Risk Level,Clauses Analyzed,Compliant Clauses,Violations Count,Compliance Rate,Overall Score,Processing Status,LLM Provider,Processing Time,Last Updated\n'
         data.documents.forEach((doc: any) => {
-          csvContent += `${doc.document_id},${doc.filename},${doc.uploaded_at},${doc.compliance_status},${doc.risk_level},${doc.clauses_analyzed},${doc.compliant_clauses},${doc.violations?.length || 0}\n`
+          const uploadDate = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : 'N/A'
+          const lastUpdated = doc.processed_at ? new Date(doc.processed_at).toLocaleDateString() : 'N/A'
+          const complianceRate = doc.clauses_analyzed > 0 ? ((doc.compliant_clauses / doc.clauses_analyzed) * 100).toFixed(1) + '%' : '0%'
+          
+          csvContent += `"${doc.document_id || 'N/A'}","${doc.filename || 'N/A'}","${uploadDate}","${doc.file_size || 'N/A'}","${doc.compliance_status || 'Processed'}","${doc.risk_level || 'Medium'}","${doc.clauses_analyzed || 0}","${doc.compliant_clauses || 0}","${doc.violations?.length || 0}","${complianceRate}","${doc.overall_score || 0}","${doc.status || 'Unknown'}","${doc.llm_provider || 'GCP Analysis'}","${doc.processing_time || 'N/A'}","${lastUpdated}"\n`
         })
-      } else if (reportType === 'risk' && data.risk_categories) {
-        // Risk analysis CSV
-        csvContent = 'Document ID,Filename,Risk Level,Risk Score,Recommendations Count,Violations Count\n'
-        Object.values(data.risk_categories).forEach((category: any) => {
-          if (Array.isArray(category)) {
-            category.forEach((item: any) => {
-              csvContent += `${item.document_id},${item.filename},${item.risk_level},${item.risk_score},${item.recommendations?.length || 0},${item.violations?.length || 0}\n`
-            })
-          }
-        })
+        
+        // Add summary information
+        if (data.summary) {
+          csvContent += '\n\n--- SUMMARY ---\n'
+          csvContent += 'Metric,Value\n'
+          csvContent += `"Total Documents","${data.summary.total_documents || data.documents.length}"\n`
+          csvContent += `"Successfully Processed","${data.summary.processed_documents || data.documents.filter((d: any) => d.clauses_analyzed > 0).length}"\n`
+          csvContent += `"Overall Compliance Rate","${data.compliance_rate || 0}%"\n`
+          csvContent += `"Average Risk Level","${data.summary.average_risk_level || 'Medium'}"\n`
+          csvContent += `"Total Clauses Analyzed","${data.summary.total_clauses_analyzed || data.documents.reduce((sum: number, doc: any) => sum + (doc.clauses_analyzed || 0), 0)}"\n`
+        }
+      } else if (reportType === 'risk') {
+        // Enhanced risk analysis CSV with detailed breakdown
+        csvContent = 'Document ID,Filename,File Size,Risk Level,Risk Score,Total Clauses,High Risk Clauses,Medium Risk Clauses,Low Risk Clauses,Violations Count,Compliance Rate,Risk Category,Mitigation Recommendations,Processing Status,Assessment Date\n'
+        
+        if (data.documents) {
+          data.documents.forEach((doc: any) => {
+            const assessmentDate = doc.processed_at ? new Date(doc.processed_at).toLocaleDateString() : 'N/A'
+            const complianceRate = doc.clauses_analyzed > 0 ? ((doc.compliant_clauses / doc.clauses_analyzed) * 100).toFixed(1) + '%' : '0%'
+            const totalViolations = (doc.violations?.length || 0)
+            const mitigationCount = doc.recommendations?.length || 0
+            
+            csvContent += `"${doc.document_id || 'N/A'}","${doc.filename || 'N/A'}","${doc.file_size || 'N/A'}","${doc.risk_level || 'Medium'}","${doc.overall_score || 0}","${doc.clauses_analyzed || 0}","${doc.high_risk_clauses || 0}","${doc.medium_risk_clauses || 0}","${doc.low_risk_clauses || 0}","${totalViolations}","${complianceRate}","${doc.risk_category || 'General'}","${mitigationCount}","${doc.status || 'Unknown'}","${assessmentDate}"\n`
+          })
+          
+          // Add risk distribution summary
+          csvContent += '\n\n--- RISK ANALYSIS SUMMARY ---\n'
+          csvContent += 'Risk Metric,Count,Percentage\n'
+          const totalDocs = data.documents.length
+          const highRiskDocs = data.documents.filter((d: any) => d.risk_level === 'high').length
+          const mediumRiskDocs = data.documents.filter((d: any) => d.risk_level === 'medium').length
+          const lowRiskDocs = data.documents.filter((d: any) => d.risk_level === 'low').length
+          
+          csvContent += `"High Risk Documents","${highRiskDocs}","${((highRiskDocs / totalDocs) * 100).toFixed(1)}%"\n`
+          csvContent += `"Medium Risk Documents","${mediumRiskDocs}","${((mediumRiskDocs / totalDocs) * 100).toFixed(1)}%"\n`
+          csvContent += `"Low Risk Documents","${lowRiskDocs}","${((lowRiskDocs / totalDocs) * 100).toFixed(1)}%"\n`
+          
+          const avgComplianceRate = data.documents.reduce((sum: number, doc: any) => {
+            return sum + (doc.clauses_analyzed > 0 ? (doc.compliant_clauses / doc.clauses_analyzed) : 0)
+          }, 0) / totalDocs
+          csvContent += `"Average Compliance Rate","${(avgComplianceRate * 100).toFixed(1)}%","100%"\n`
+          csvContent += `"Total Violations","${data.documents.reduce((sum: number, doc: any) => sum + (doc.violations?.length || 0), 0)}","N/A"\n`
+        }
       } else if (reportType === 'trends' && data.compliance_trends) {
-        // Trend analysis CSV
-        csvContent = 'Date,Compliance Rate,Documents Count\n'
+        // Enhanced trend analysis CSV
+        csvContent = 'Date,Compliance Rate,Documents Count,Average Risk Score,High Risk Count,Medium Risk Count,Low Risk Count,Violation Trend\n'
         data.compliance_trends.forEach((trend: any) => {
-          csvContent += `${trend.date},${trend.compliance_rate}%,${trend.total_documents}\n`
+          csvContent += `"${trend.date}","${trend.compliance_rate}%","${trend.total_documents}","${trend.avg_risk_score || 'N/A'}","${trend.high_risk_count || 0}","${trend.medium_risk_count || 0}","${trend.low_risk_count || 0}","${trend.violation_trend || 'Stable'}"\n`
         })
-      } else {
-        // Generic CSV export
-        csvContent = 'Key,Value\n'
-        const flattenObject = (obj: any, prefix = '') => {
-          Object.keys(obj).forEach(key => {
-            const newKey = prefix ? `${prefix}.${key}` : key
-            if (typeof obj[key] === 'object' && obj[key] !== null) {
-              flattenObject(obj[key], newKey)
+      } else if (reportType === 'custom') {
+        // Custom report CSV format
+        csvContent = 'Report Section,Metric,Value,Description,Generated Date\n'
+        const generateDate = new Date().toLocaleDateString()
+        
+        if (data.summary) {
+          Object.entries(data.summary).forEach(([key, value]) => {
+            csvContent += `"Summary","${key}","${value}","Summary metric","${generateDate}"\n`
+          })
+        }
+        
+        if (data.details) {
+          Object.entries(data.details).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+              value.forEach((item: any, index: number) => {
+                csvContent += `"${key}","Item ${index + 1}","${JSON.stringify(item)}","Detail item","${generateDate}"\n`
+              })
             } else {
-              csvContent += `${newKey},${obj[key]}\n`
+              csvContent += `"Details","${key}","${value}","Detail metric","${generateDate}"\n`
             }
           })
         }
+      } else {
+        // Enhanced generic CSV export
+        csvContent = 'Section,Key,Value,Type,Generated Date\n'
+        const generateDate = new Date().toLocaleDateString()
+        
+        const flattenObject = (obj: any, section = 'Data') => {
+          Object.keys(obj).forEach(key => {
+            const value = obj[key]
+            const valueType = typeof value
+            
+            if (value !== null && valueType === 'object' && !Array.isArray(value)) {
+              flattenObject(value, key)
+            } else if (Array.isArray(value)) {
+              csvContent += `"${section}","${key}","${value.length} items","Array","${generateDate}"\n`
+            } else {
+              csvContent += `"${section}","${key}","${value}","${valueType}","${generateDate}"\n`
+            }
+          })
+        }
+        
         flattenObject(data)
       }
 
@@ -157,107 +266,101 @@ export default function ReportsPage() {
     }
   }
 
-  const exportToPDF = async (data: any, filename: string, reportType?: string) => {
+  const downloadDocumentFromGCP = async (documentId: string, filename: string) => {
     try {
-      // For PDF export, we'll create a simple HTML structure and convert it
-      let htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>${reportType?.toUpperCase() || 'COMPLIANCE'} REPORT</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
-            h2 { color: #666; margin-top: 30px; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .summary { background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <h1>${reportType?.toUpperCase() || 'COMPLIANCE'} REPORT</h1>
-          <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-      `
-
-      if (reportType === 'compliance' && data.documents) {
-        htmlContent += `
-          <div class="summary">
-            <h2>Summary</h2>
-            <p><strong>Total Documents:</strong> ${data.summary?.total_documents || 0}</p>
-            <p><strong>Compliant Documents:</strong> ${data.summary?.compliant_documents || 0}</p>
-            <p><strong>Compliance Rate:</strong> ${data.compliance_rate?.toFixed(1) || 0}%</p>
-          </div>
-
-          <h2>Document Details</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Document ID</th>
-                <th>Filename</th>
-                <th>Compliance Status</th>
-                <th>Risk Level</th>
-                <th>Clauses Analyzed</th>
-              </tr>
-            </thead>
-            <tbody>
-        `
-
-        data.documents.forEach((doc: any) => {
-          htmlContent += `
-            <tr>
-              <td>${doc.document_id}</td>
-              <td>${doc.filename}</td>
-              <td>${doc.compliance_status}</td>
-              <td>${doc.risk_level}</td>
-              <td>${doc.clauses_analyzed}</td>
-            </tr>
-          `
-        })
-
-        htmlContent += `
-            </tbody>
-          </table>
-        `
-      } else if (reportType === 'risk' && data.summary) {
-        htmlContent += `
-          <div class="summary">
-            <h2>Risk Summary</h2>
-            <p><strong>Total Risks:</strong> ${data.summary.total_risks}</p>
-            <p><strong>High Risks:</strong> ${data.summary.high_risks}</p>
-            <p><strong>Medium Risks:</strong> ${data.summary.medium_risks}</p>
-            <p><strong>Low Risks:</strong> ${data.summary.low_risks}</p>
-          </div>
-        `
-      } else {
-        // Generic PDF content
-        htmlContent += `
-          <div class="summary">
-            <h2>Report Data</h2>
-            <pre>${JSON.stringify(data, null, 2)}</pre>
-          </div>
-        `
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const response = await fetch(`${apiUrl}/api/dashboard/documents/${documentId}/download`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to download document from GCP')
       }
-
-      htmlContent += `
-        </body>
-        </html>
-      `
-
-      // Create blob and download
-      const blob = new Blob([htmlContent], { type: 'text/html' })
+      
+      const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${filename}.html`
+      a.download = filename
       a.click()
       URL.revokeObjectURL(url)
-
-      // Note: For a full PDF implementation, you would typically use a library like jsPDF or Puppeteer
-      alert('PDF export saved as HTML. For full PDF support, consider using a PDF generation library.')
     } catch (error) {
-      console.error('PDF export failed:', error)
+      console.error('Document download failed:', error)
       throw error
+    }
+  }
+
+  const generateTrendChart = async (data: any) => {
+    try {
+      // Create a simple SVG chart for trend analysis
+      const width = 800
+      const height = 400
+      const margin = { top: 20, right: 30, bottom: 40, left: 50 }
+      
+      const trends = data.compliance_trends || []
+      if (trends.length === 0) return null
+      
+      const maxRate = Math.max(...trends.map((t: any) => t.compliance_rate))
+      const minRate = Math.min(...trends.map((t: any) => t.compliance_rate))
+      
+      let svgContent = `
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <style>
+              .axis { stroke: #333; stroke-width: 1; }
+              .grid { stroke: #ccc; stroke-width: 0.5; stroke-dasharray: 2,2; }
+              .line { fill: none; stroke: #2563eb; stroke-width: 2; }
+              .point { fill: #2563eb; stroke: white; stroke-width: 2; }
+              .text { font-family: Arial, sans-serif; font-size: 12px; fill: #333; }
+              .title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; fill: #333; }
+            </style>
+          </defs>
+          
+          <!-- Background -->
+          <rect width="${width}" height="${height}" fill="white"/>
+          
+          <!-- Title -->
+          <text x="${width/2}" y="20" text-anchor="middle" class="title">Compliance Trend Analysis</text>
+          
+          <!-- Axes -->
+          <line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" class="axis"/>
+          <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}" class="axis"/>
+      `
+      
+      // Y-axis labels
+      for (let i = 0; i <= 5; i++) {
+        const y = margin.top + (height - margin.top - margin.bottom) * i / 5
+        const value = maxRate - (maxRate - minRate) * i / 5
+        svgContent += `<text x="${margin.left - 10}" y="${y + 4}" text-anchor="end" class="text">${value.toFixed(0)}%</text>`
+        svgContent += `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" class="grid"/>`
+      }
+      
+      // Plot data
+      const xStep = (width - margin.left - margin.right) / (trends.length - 1)
+      let pathData = 'M'
+      
+      trends.forEach((trend: any, index: number) => {
+        const x = margin.left + index * xStep
+        const y = margin.top + (height - margin.top - margin.bottom) * (1 - (trend.compliance_rate - minRate) / (maxRate - minRate))
+        
+        if (index === 0) {
+          pathData += `${x},${y}`
+        } else {
+          pathData += ` L${x},${y}`
+        }
+        
+        // Add point
+        svgContent += `<circle cx="${x}" cy="${y}" r="4" class="point"/>`
+        
+        // Add x-axis label
+        svgContent += `<text x="${x}" y="${height - margin.bottom + 15}" text-anchor="middle" class="text">${trend.date}</text>`
+      })
+      
+      svgContent += `<path d="${pathData}" class="line"/>`
+      svgContent += '</svg>'
+      
+      return svgContent
+    } catch (error) {
+      console.error('Chart generation failed:', error)
+      return null
     }
   }
 
@@ -387,15 +490,15 @@ export default function ReportsPage() {
                 onClick={() => handleExportReport('csv', 'compliance')}
               >
                 {exportLoading ? 'Exporting...' : 'Export All as CSV'}
-            </Button>
+              </Button>
               <Button
                 variant="secondary"
                 size="sm"
                 disabled={exportLoading}
-                onClick={() => handleExportReport('pdf', 'compliance')}
+                onClick={() => handleExportReport('json', 'compliance')}
               >
-                {exportLoading ? 'Exporting...' : 'Export All as PDF'}
-            </Button>
+                {exportLoading ? 'Exporting...' : 'Export All as JSON'}
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -488,7 +591,7 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle>Risk Analysis Reports</CardTitle>
               <CardDescription>
-                Detailed risk assessment and mitigation reports from GCP
+                Detailed risk assessment and mitigation reports with document analysis from GCP
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -505,7 +608,7 @@ export default function ReportsPage() {
                     ) : (
                       <Download className="h-4 w-4 mr-2" />
                     )}
-                    Export Detailed Risk Analysis (JSON)
+                    Export Risk Analysis (JSON)
                   </Button>
                   <Button
                     onClick={() => handleExportReport('csv', 'risk')}
@@ -521,27 +624,73 @@ export default function ReportsPage() {
                     Export as CSV
                   </Button>
                 </div>
-                {reports.filter(r => r.type === 'Risk Analysis').map((report) => (
-                  <div key={report.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <h3 className="font-medium">{report.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Generated on {report.date} • {report.size}
-                        </p>
+                
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Documents Available for Analysis</h4>
+                  <div className="grid gap-3">
+                    {gcpReports && gcpReports.length > 0 ? (
+                      gcpReports.map((doc: any, index: number) => (
+                        <div key={doc.id || index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-blue-600" />
+                            <div>
+                              <p className="font-medium text-sm">{doc.filename || `Document ${index + 1}`}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Risk Level: {doc.risk_level || 'Medium'} • 
+                                Status: {doc.status || 'Analyzed'}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadDocumentFromGCP(doc.id || `doc_${index}`, doc.filename || `document_${index + 1}.pdf`)}
+                            disabled={exportLoading}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No documents available for risk analysis</p>
+                        <p className="text-xs">Upload documents to generate risk assessments</p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={report.status === 'Ready' ? 'default' : 'secondary'}>
-                        {report.status}
-                      </Badge>
-                      <Button size="sm" disabled={report.status !== 'Ready'}>
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    )}
                   </div>
-                ))}
+                </div>
+
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Generated Risk Reports</h4>
+                  {reports.filter(r => r.type === 'Risk Analysis').length > 0 ? (
+                    reports.filter(r => r.type === 'Risk Analysis').map((report) => (
+                      <div key={report.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                          <div>
+                            <h3 className="font-medium">{report.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Generated on {report.date} • {report.size}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={report.status === 'Ready' ? 'default' : 'secondary'}>
+                            {report.status}
+                          </Badge>
+                          <Button size="sm" disabled={report.status !== 'Ready'}>
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">
+                      No risk analysis reports generated yet
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -552,7 +701,7 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle>Trend Analysis Reports</CardTitle>
               <CardDescription>
-                Historical compliance trends and patterns from GCP
+                Historical compliance trends and patterns with interactive graphs
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -569,7 +718,7 @@ export default function ReportsPage() {
                     ) : (
                       <Download className="h-4 w-4 mr-2" />
                     )}
-                    Export Detailed Trend Analysis (JSON)
+                    Export Trend Data (JSON)
                   </Button>
                   <Button
                     onClick={() => handleExportReport('csv', 'trends')}
@@ -584,10 +733,94 @@ export default function ReportsPage() {
                     )}
                     Export as CSV
                   </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        setExportLoading(true)
+                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+                        const response = await fetch(`${apiUrl}/api/dashboard/reports/export/trend-analysis`)
+                        
+                        if (!response.ok) throw new Error('Failed to fetch trend data')
+                        
+                        const result = await response.json()
+                        const svgChart = await generateTrendChart(result.data)
+                        
+                        if (svgChart) {
+                          const blob = new Blob([svgChart], { type: 'image/svg+xml' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `compliance-trend-chart-${new Date().toISOString().split('T')[0]}.svg`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        } else {
+                          alert('No trend data available to generate chart')
+                        }
+                      } catch (error) {
+                        console.error('Chart export failed:', error)
+                        alert('Failed to export trend chart')
+                      } finally {
+                        setExportLoading(false)
+                      }
+                    }}
+                    disabled={exportLoading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {exportLoading ? (
+                      <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full mr-2" />
+                    ) : (
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                    )}
+                    Download Chart (SVG)
+                  </Button>
                 </div>
-              <div className="text-center py-8 text-muted-foreground">
-                No trend reports available yet. Upload more documents to generate trend analysis.
-                  Use the export buttons above to generate detailed trend analysis from GCP storage.
+                
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium">Compliance Trend Visualization</h4>
+                    <Badge variant="outline">Interactive</Badge>
+                  </div>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="font-medium">Trend Analysis Chart</p>
+                    <p className="text-sm">
+                      Historical compliance trends will be displayed here once sufficient data is available.
+                    </p>
+                    <p className="text-xs mt-2">
+                      Upload more documents and perform compliance analysis to generate meaningful trends.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Trend Analysis Features</h4>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="p-3 border rounded-lg">
+                      <h5 className="font-medium text-sm mb-2">Compliance Rate Over Time</h5>
+                      <p className="text-xs text-muted-foreground">
+                        Track how compliance rates change across different time periods
+                      </p>
+                    </div>
+                    <div className="p-3 border rounded-lg">
+                      <h5 className="font-medium text-sm mb-2">Risk Level Distribution</h5>
+                      <p className="text-xs text-muted-foreground">
+                        Analyze the distribution of risk levels across documents over time
+                      </p>
+                    </div>
+                    <div className="p-3 border rounded-lg">
+                      <h5 className="font-medium text-sm mb-2">Document Volume Trends</h5>
+                      <p className="text-xs text-muted-foreground">
+                        Monitor the volume of documents processed and analyzed
+                      </p>
+                    </div>
+                    <div className="p-3 border rounded-lg">
+                      <h5 className="font-medium text-sm mb-2">Violation Patterns</h5>
+                      <p className="text-xs text-muted-foreground">
+                        Identify patterns in compliance violations and regulatory breaches
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -599,11 +832,12 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle>Custom Report Builder</CardTitle>
               <CardDescription>
-                Create custom reports with specific criteria and filters from GCP
+                Create custom reports with specific criteria and filters from GCP data
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Export Buttons */}
                 <div className="flex gap-2 mb-4">
                   <Button
                     onClick={() => handleExportReport('json', 'custom')}
@@ -632,9 +866,165 @@ export default function ReportsPage() {
                     Export as CSV
                   </Button>
                 </div>
-              <div className="text-center py-8 text-muted-foreground">
-                  Custom report builder with advanced filters. Use the export buttons above to generate
-                  custom reports from GCP storage with specific criteria and filters.
+
+                {/* Filter Options */}
+                <div className="border rounded-lg p-4">
+                  <h4 className="font-medium mb-3">Report Filters & Criteria</h4>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Risk Level Filter</label>
+                      <Select defaultValue="all">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Risk Levels</SelectItem>
+                          <SelectItem value="high">High Risk Only</SelectItem>
+                          <SelectItem value="medium">Medium Risk Only</SelectItem>
+                          <SelectItem value="low">Low Risk Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Compliance Status</label>
+                      <Select defaultValue="all">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="compliant">Compliant Only</SelectItem>
+                          <SelectItem value="non-compliant">Non-Compliant Only</SelectItem>
+                          <SelectItem value="pending">Pending Review</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Document Type</label>
+                      <Select defaultValue="all">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Document Types</SelectItem>
+                          <SelectItem value="contract">Contracts</SelectItem>
+                          <SelectItem value="policy">Policies</SelectItem>
+                          <SelectItem value="agreement">Agreements</SelectItem>
+                          <SelectItem value="regulation">Regulations</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Date Range</label>
+                      <Select defaultValue="30d">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7d">Last 7 days</SelectItem>
+                          <SelectItem value="30d">Last 30 days</SelectItem>
+                          <SelectItem value="90d">Last 90 days</SelectItem>
+                          <SelectItem value="1y">Last year</SelectItem>
+                          <SelectItem value="all">All time</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <Button variant="secondary" size="sm">
+                      <Filter className="h-4 w-4 mr-2" />
+                      Apply Filters & Generate Report
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Report Templates */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Quick Report Templates</h4>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <FileText className="h-5 w-5 text-orange-600 mt-0.5" />
+                        <div>
+                          <h5 className="font-medium text-sm">High-Risk Documents</h5>
+                          <p className="text-xs text-muted-foreground">
+                            All documents with high risk assessment
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <FileText className="h-5 w-5 text-red-600 mt-0.5" />
+                        <div>
+                          <h5 className="font-medium text-sm">Non-Compliant Items</h5>
+                          <p className="text-xs text-muted-foreground">
+                            Documents failing compliance checks
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <FileText className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div>
+                          <h5 className="font-medium text-sm">Recent Analysis</h5>
+                          <p className="text-xs text-muted-foreground">
+                            Documents analyzed in the last 7 days
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom Metrics */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Include Custom Metrics</h4>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <input type="checkbox" id="compliance-score" className="rounded" defaultChecked />
+                        <label htmlFor="compliance-score" className="text-sm">Overall Compliance Score</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input type="checkbox" id="risk-breakdown" className="rounded" defaultChecked />
+                        <label htmlFor="risk-breakdown" className="text-sm">Risk Level Breakdown</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input type="checkbox" id="violation-details" className="rounded" defaultChecked />
+                        <label htmlFor="violation-details" className="text-sm">Detailed Violation Analysis</label>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <input type="checkbox" id="time-analysis" className="rounded" />
+                        <label htmlFor="time-analysis" className="text-sm">Processing Time Analysis</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input type="checkbox" id="recommendations" className="rounded" defaultChecked />
+                        <label htmlFor="recommendations" className="text-sm">Risk Mitigation Recommendations</label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input type="checkbox" id="document-metadata" className="rounded" />
+                        <label htmlFor="document-metadata" className="text-sm">Document Metadata & Properties</label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview Section */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Report Preview</h4>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-center py-6 text-muted-foreground">
+                      <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="font-medium text-sm">Custom Report Preview</p>
+                      <p className="text-xs">
+                        Configure your filters and metrics above, then generate your custom report
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
