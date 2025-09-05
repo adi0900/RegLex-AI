@@ -829,14 +829,9 @@ export default function LandingPage() {
             <div>
               <h3 className="text-lg font-semibold mb-4">Contact</h3>
               <ul className="space-y-2 text-gray-300">
-                <li>support@sebi-compliance.ai</li>
-                <li>+91 (80) 1234-5678</li>
-                <li>Bangalore, India</li>
-                <li className="pt-2">
-                  <a href="/contact" className="text-blue-400 hover:text-blue-300 transition-colors">
-                    Contact Form →
-                  </a>
-                </li>
+                <li>adi1423tya@gmail.com</li>
+                <li>+91-9695882854</li>
+                <li>Jaipur, India</li>
               </ul>
             </div>
           </div>
@@ -844,7 +839,7 @@ export default function LandingPage() {
           {/* Bottom Bar */}
           <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400 text-sm">
-              © 2024 SEBI Compliance System. All rights reserved.
+              © 2025 RegLex AI - SEBI Compliance System. All rights reserved.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <a href="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">Privacy Policy</a>
