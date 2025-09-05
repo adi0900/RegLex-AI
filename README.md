@@ -5,7 +5,9 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14.2.18-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Google Cloud](https://img.shields.io/badge/Google_Cloud-Active-blue)
-![Status](https://img.shields.io/badge/Status-Active-success)
+![Vercel](https://img.shields.io/badge/Vercel-Deployed-success)
+[![GitHub](https://img.shields.io/badge/GitHub-adi0900/RegLex--AI-blue)](https://github.com/adi0900/RegLex-AI)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-reg--lex--ai.vercel.app-green)](https://reg-lex-ai.vercel.app)
 
 A comprehensive AI-powered legal document compliance verification system built for SEBI (Securities and Exchange Board of India) regulations with **real-time GCP integration**. The system analyzes legal clauses in documents stored in Google Cloud Storage and performs live compliance verification using multiple LLM providers and advanced document processing.
 
@@ -333,7 +335,7 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
 1. **Create Backend Project:**
    - Go to [vercel.com](https://vercel.com)
    - Click "New Project" → Import from GitHub
-   - Select this repository
+   - Select `adi0900/RegLex-AI` repository
    - Set **root directory** to `Backend`
 
 2. **Configure Backend:**
@@ -345,18 +347,19 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
 3. **Add Backend Environment Variables:**
    ```
    ENVIRONMENT=production
+   FRONTEND_URL=https://reg-lex-ai.vercel.app
    GEMINI_API_KEY=your_gemini_api_key_here
    GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
    GCS_BUCKET_NAME=your_gcp_bucket_name
    GOOGLE_APPLICATION_CREDENTIALS={"type":"service_account","project_id":"..."}
    ```
 
-4. **Deploy Backend:** Get the backend URL (e.g., `https://sebi-backend.vercel.app`)
+4. **Deploy Backend:** Your backend will be available at `https://reglex-backend.vercel.app` (or similar)
 
 #### Step 2: Deploy Frontend
 1. **Create Frontend Project:**
    - Click "New Project" → Import from GitHub
-   - Select this repository
+   - Select `adi0900/RegLex-AI` repository
    - Set **root directory** to `Frontend`
 
 2. **Configure Frontend:**
@@ -365,7 +368,7 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
 
 3. **Add Frontend Environment Variables:**
    ```
-   NEXT_PUBLIC_API_URL=https://your-backend-url.vercel.app
+   NEXT_PUBLIC_API_URL=https://reglex-backend.vercel.app
    NEXT_PUBLIC_USE_MOCK_API=false
    NEXT_PUBLIC_ENABLE_ANALYTICS=true
    NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
@@ -374,14 +377,34 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
 
 4. **Deploy Frontend:** Vercel automatically builds and deploys
 
-#### Step 3: Update CORS (Important!)
-After deployment, update your backend's CORS configuration to allow your frontend domain:
+#### Step 3: Verify Deployment
+After deployment, verify that both services are working:
 
-1. Go to your backend Vercel project
-2. Add environment variable: `FRONTEND_URL=https://your-frontend-url.vercel.app`
-3. Redeploy backend
+1. **Test Backend:** Visit `https://reglex-backend.vercel.app/health`
+2. **Test Frontend:** Visit `https://reg-lex-ai.vercel.app`
+3. **Test API Connection:** Check browser console for CORS errors
 
-**Note:** Replace `your-backend-url.vercel.app` and `your-frontend-url.vercel.app` with your actual Vercel URLs.
+#### Troubleshooting Deployment Issues
+
+If you encounter CORS or connection issues:
+
+1. **Update Backend Environment Variables:**
+   - Go to your backend Vercel project settings
+   - Add: `FRONTEND_URL=https://reg-lex-ai.vercel.app`
+   - Redeploy backend
+
+2. **Check Frontend Environment Variables:**
+   - Ensure `NEXT_PUBLIC_API_URL` points to your actual backend URL
+   - Redeploy frontend if changed
+
+3. **Verify API Endpoints:**
+   ```bash
+   # Test backend health
+   curl https://reglex-backend.vercel.app/health
+
+   # Test dashboard endpoint
+   curl https://reglex-backend.vercel.app/api/dashboard/overview
+   ```
 
 #### Alternative Backend Hosting
 - **Railway:** Connect GitHub, auto-detects FastAPI
