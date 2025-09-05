@@ -112,3 +112,14 @@ gcp-credentials*.json
 # TypeScript
 *.tsbuildinfo
 Frontend/tsconfig.tsbuildinfo
+
+# Claude IDE settings
+.claude/
+Frontend/.claude/
+Backend/.claude/
+
+# Sensitive files
+*.key
+*.pem
+*_private*
+*secret*

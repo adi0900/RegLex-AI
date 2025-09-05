@@ -28,7 +28,8 @@
       "Bash(npm run build:*)",
       "Bash(npx tsc:*)",
       "Bash(npm run lint)",
-      "Bash(npx next lint:*)"
+      "Bash(npx next lint:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

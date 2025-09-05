@@ -4,7 +4,8 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import DashboardService, { 
+import DashboardService from '@/lib/dashboard-services'
+import type { 
   DashboardOverview, 
   DocumentItem, 
   NotificationItem, 

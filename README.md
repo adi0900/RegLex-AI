@@ -1,4 +1,4 @@
-# SEBI Compliance Verification System
+# RegLex AI - SEBI Compliance Verification System
 
 ![SEBI Compliance](https://img.shields.io/badge/SEBI-Compliance-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green)
@@ -339,14 +339,26 @@ python -c "from google.cloud import storage; client = storage.Client(); print('G
 3. **Add Environment Variables in Vercel:**
    ```
    NEXT_PUBLIC_API_URL=https://your-backend-url.vercel.app
-   GEMINI_API_KEY=your_gemini_api_key_here
-   GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
+   NEXT_PUBLIC_USE_MOCK_API=false
+   NEXT_PUBLIC_ENABLE_ANALYTICS=true
+   NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+   NEXT_PUBLIC_API_TIMEOUT=300000
    ```
 4. **Deploy:** Vercel automatically builds and deploys
 
-#### Backend Deployment Options
-- **Vercel:** Create new project for `Backend` folder
-- **Railway/Render:** Connect GitHub, set build/start commands
+#### Backend Deployment (FastAPI)
+1. **Create separate Vercel project** for the backend
+2. **Set root directory** to `Backend`
+3. **Add Environment Variables:**
+   ```
+   GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_API_KEY_2=your_secondary_gemini_api_key_here
+   ```
+4. **Deploy:** Vercel handles Python/FastAPI automatically
+
+#### Alternative Backend Hosting
+- **Railway:** Connect GitHub, auto-detects FastAPI
+- **Render:** Deploy from GitHub with Python runtime
 - **Google Cloud Run:** `gcloud run deploy --source Backend`
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment guide.
