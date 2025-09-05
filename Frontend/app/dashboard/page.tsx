@@ -62,9 +62,9 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       setDashboardData(prev => ({ ...prev, isLoading: true, error: null }))
-      
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
-      
+
       // Test connectivity first
       const healthResponse = await fetch(`${apiUrl}/health`)
       if (!healthResponse.ok) {
@@ -116,6 +116,64 @@ export default function DashboardPage() {
     }
   }
 
+  // Function to perform real-time compliance analysis
+  const analyzeDocumentCompliance = async (documentId: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const response = await fetch(`${apiUrl}/api/dashboard/analyze/${documentId}`)
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze document')
+      }
+
+      const result = await response.json()
+      console.log('Document analysis result:', result)
+
+      // Refresh dashboard data after analysis
+      await fetchDashboardData()
+
+      return result.data
+    } catch (error) {
+      console.error('Document analysis failed:', error)
+      throw error
+    }
+  }
+
+  // Function to refresh analytics with real-time data
+  const refreshAnalytics = async () => {
+    try {
+      setDashboardData(prev => ({ ...prev, isLoading: true }))
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const response = await fetch(`${apiUrl}/api/dashboard/refresh-analytics`, {
+        method: 'POST'
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to refresh analytics')
+      }
+
+      const result = await response.json()
+      console.log('Analytics refresh result:', result)
+
+      // Update analytics data
+      setDashboardData(prev => ({
+        ...prev,
+        analytics: result.data,
+        isLoading: false,
+        lastUpdated: new Date()
+      }))
+
+    } catch (error) {
+      console.error('Analytics refresh failed:', error)
+      setDashboardData(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Failed to refresh analytics'
+      }))
+    }
+  }
+
   // Load initial data
   useEffect(() => {
     fetchDashboardData()
@@ -140,9 +198,13 @@ export default function DashboardPage() {
               Updated {new Date(lastUpdated).toLocaleTimeString()}
             </Badge>
           )}
+          <Button onClick={refreshAnalytics} size="sm" disabled={isLoading}>
+            <Activity className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'Analyzing...' : 'Analyze All'}
+          </Button>
           <Button onClick={fetchDashboardData} size="sm" disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            {isLoading ? 'Loading...' : 'Refresh'}
+            {isLoading ? 'Loading...' : 'Refresh Data'}
           </Button>
         </div>
       </div>
@@ -343,18 +405,34 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Badge 
+                    <div className="text-right space-y-2">
+                      <Badge
                         variant={
-                          doc.riskLevel === 'high' ? 'destructive' : 
-                          doc.riskLevel === 'medium' ? 'secondary' : 
-                          doc.riskLevel === 'low' || doc.riskLevel === 'compliant' ? 'default' : 
+                          doc.riskLevel === 'high' ? 'destructive' :
+                          doc.riskLevel === 'medium' ? 'secondary' :
+                          doc.riskLevel === 'low' || doc.riskLevel === 'compliant' ? 'default' :
                           'outline'
                         }
                       >
                         {doc.riskLevel || 'unknown'}
                       </Badge>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-6"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          try {
+                            await analyzeDocumentCompliance(doc.id)
+                          } catch (error) {
+                            console.error('Analysis failed:', error)
+                          }
+                        }}
+                      >
+                        <Activity className="h-3 w-3 mr-1" />
+                        Analyze
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
                         {doc.status === 'completed' ? 'Ready' : doc.status || 'Processing'}
                       </p>
                     </div>

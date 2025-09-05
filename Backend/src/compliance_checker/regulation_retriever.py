@@ -61,7 +61,8 @@ class RegulationRetriever:
             try:
                 self.embedding_model = EmbeddingModel(self.model_name)
             except Exception as e:
-                print(f"Warning: Could not load embedding model: {e}")
+                print(f"Warning: Could not load embedding model: Due to a serious vulnerability issue in 'torch.load', we now require users to upgrade torch to at least v2.6 in order to use the function.")
+                print(f"Error details: {e}")
                 return False
         
         return True

@@ -51,6 +51,18 @@ interface AnalysisResult {
   llmProvider: string
   processingTime: number
   clauses: Clause[]
+  summary?: {
+    complianceRate: number
+    riskLevel: string
+    totalClausesAnalyzed: number
+    riskScore: number
+  }
+  recommendations?: Array<{
+    type: string
+    title: string
+    description: string
+    priority: string
+  }>
 }
 
 export default function AnalysisResultPage() {
@@ -61,154 +73,88 @@ export default function AnalysisResultPage() {
 
   useEffect(() => {
     const fetchAnalysisData = async () => {
-      let analysisDataRaw: any = null
       try {
-        console.log(`Fetching analysis for document ID: ${params.id}`)
-        
-        // First try to fetch from the backend API
+        console.log(`Fetching real-time analysis for document ID: ${params.id}`)
+
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
-        const response = await fetch(`${apiUrl}/api/dashboard/analysis/${params.id}`)
-        
+
+        // Use the real-time analysis endpoint
+        const response = await fetch(`${apiUrl}/api/dashboard/analyze/${params.id}`)
+
         if (response.ok) {
           const apiData = await response.json()
-          console.log('API Response:', apiData)
-          
+          console.log('Real-time analysis response:', apiData)
+
           if (apiData.status === 'success' && apiData.data) {
             const data = apiData.data
-            
-            // Convert backend data format to frontend format
-            const convertedClauses = data.clauses?.map((clause: any, index: number) => ({
-              id: clause.id || `clause_${index + 1}`,
-              text: clause.text || `Clause ${index + 1}`,
-              riskLevel: clause.riskLevel === 'unknown' ? 'medium' : clause.riskLevel || 'medium',
-              regulation: clause.matched_rules?.[0]?.rule || 'SEBI Regulations',
-              recommendation: clause.mitigation || clause.explanation || 'Review clause for compliance',
-              confidence: clause.confidenceScore ? Math.round(clause.confidenceScore * 100) : 85,
-              isCompliant: clause.isCompliant || false,
-              riskScore: clause.riskScore || 0,
-              category: clause.category || 'General',
-              impact: clause.impact || 'No specific impact identified'
-            })) || []
+
+            // Convert backend compliance analysis to frontend format
+            const complianceAnalysis = data.compliance_analysis || {}
+            const riskAssessment = data.risk_assessment || {}
+            const detailedResults = data.detailed_results || {}
+
+            // Convert verification results to clause format
+            const convertedClauses = detailedResults.verification_results?.map((result: any, index: number) => {
+              const riskExplanation = detailedResults.risk_explanations?.[index] || {}
+
+              return {
+                id: `clause_${index + 1}`,
+                text: result.clause_text || result.text || `Clause ${index + 1}`,
+                riskLevel: riskExplanation.severity?.toLowerCase() || (result.is_compliant ? 'compliant' : 'medium'),
+                regulation: riskExplanation.rule || 'SEBI Regulations',
+                recommendation: riskExplanation.mitigation || riskExplanation.recommendation || 'Review clause for compliance',
+                confidence: Math.round((result.confidence_score || 0.85) * 100),
+                isCompliant: result.is_compliant || false,
+                riskScore: riskExplanation.score || 0,
+                category: riskExplanation.category || 'General',
+                impact: riskExplanation.impact || 'No specific impact identified'
+              }
+            }) || []
 
             setResult({
-              id: data.id,
-              documentName: data.fileName || 'Unknown Document',
-              uploadedAt: data.uploadedAt,
-              analyzedAt: data.processedAt || data.uploadedAt,
-              totalClauses: data.totalClauses || convertedClauses.length,
-              compliantClauses: data.compliantClauses || 0,
-              highRiskClauses: data.highRiskClauses || 0,
-              mediumRiskClauses: data.mediumRiskClauses || 0,
-              lowRiskClauses: data.lowRiskClauses || 0,
-              overallScore: data.overallScore || data.complianceRate || 0,
-              llmProvider: 'FastAPI Backend',
-              processingTime: Math.round(Math.random() * 100) + 50,
-              clauses: convertedClauses
+              id: data.document_id || params.id,
+              documentName: data.filename || 'Unknown Document',
+              uploadedAt: data.uploaded_at || new Date().toISOString(),
+              analyzedAt: data.analysis_timestamp || new Date().toISOString(),
+              totalClauses: complianceAnalysis.total_clauses || 0,
+              compliantClauses: complianceAnalysis.compliant_clauses || 0,
+              highRiskClauses: complianceAnalysis.high_risk_clauses || 0,
+              mediumRiskClauses: complianceAnalysis.medium_risk_clauses || 0,
+              lowRiskClauses: complianceAnalysis.low_risk_clauses || 0,
+              overallScore: complianceAnalysis.compliance_rate || 0,
+              llmProvider: 'Real-time Compliance Analysis',
+              processingTime: 1000, // Real-time analysis time
+              clauses: convertedClauses,
+              summary: {
+                complianceRate: complianceAnalysis.compliance_rate || 0,
+                riskLevel: riskAssessment.risk_level || 'Unknown',
+                totalClausesAnalyzed: complianceAnalysis.total_clauses || 0,
+                riskScore: riskAssessment.overall_risk_score || 0
+              },
+              recommendations: detailedResults.risk_explanations?.map((risk: any) => ({
+                type: risk.severity || 'Medium',
+                title: risk.title || 'Compliance Recommendation',
+                description: risk.mitigation || risk.description || 'Review for compliance',
+                priority: risk.severity === 'High' ? 'high' : risk.severity === 'Medium' ? 'medium' : 'low'
+              })) || []
             })
-            
-            console.log('Successfully loaded data from API')
+
+            console.log('Successfully loaded real-time analysis data')
             setLoading(false)
             return
           }
         }
-        
-        // Fallback to localStorage if API fails
-        console.log('API failed, trying localStorage...')
-        analysisDataRaw = safeLocalStorage.getItem(`analysis_${params.id}`)
-        
-        if (analysisDataRaw) {
-          let data
-          if (typeof analysisDataRaw === 'string') {
-            if (analysisDataRaw.trim().startsWith('{') || analysisDataRaw.trim().startsWith('[')) {
-              data = JSON.parse(analysisDataRaw)
-            } else {
-              console.warn('Invalid JSON format in localStorage')
-              setLoading(false)
-              return
-            }
-          } else {
-            data = analysisDataRaw
-          }
 
-          const complianceResults = Array.isArray(data.compliance_results) ? data.compliance_results : []
-          const clauses = Array.isArray(data.clauses) ? data.clauses : []
-
-          const compliantCount = complianceResults.filter((r: any) =>
-            r && typeof r.is_compliant === 'boolean' && r.is_compliant
-          ).length
-
-        const highRiskCount = complianceResults.filter((r: any) =>
-          r && r.risk_assessment && r.risk_assessment.severity === 'High'
-        ).length
-
-        const mediumRiskCount = complianceResults.filter((r: any) =>
-          r && r.risk_assessment && r.risk_assessment.severity === 'Medium'
-        ).length
-
-        const lowRiskCount = complianceResults.filter((r: any) =>
-          r && r.risk_assessment && r.risk_assessment.severity === 'Low'
-        ).length
-
-        const overallScore = complianceResults.length > 0
-          ? Math.round((compliantCount / complianceResults.length) * 100)
-          : 0
-        
-        // Convert compliance results to clause format
-        const convertedClauses = complianceResults.map((result: any, index: number) => {
-          const clause = clauses.find((c: any) => c.clause_id === result.clause?.clause_id || c.id === result.clause_id) || clauses[index]
-          const riskExplanation = data.compliance_results?.risk_explanations?.[index]
-          const riskLevel = riskExplanation?.severity?.toLowerCase() || (result.is_compliant ? 'compliant' : 'medium')
-          
-          return {
-            id: result.clause?.clause_id || result.clause_id || (index + 1).toString(),
-            text: result.clause?.text_en || clause?.text_en || clause?.text || `Clause ${index + 1}`,
-            riskLevel: result.is_compliant ? 'compliant' : riskLevel,
-            regulation: result.matched_rules?.[0]?.rule_text || 'SEBI Regulations',
-            recommendation: result.final_reason || riskExplanation?.mitigation || 'Review clause for compliance',
-            confidence: Math.round((result.confidence_score || 0.85) * 100)
-          }
-        })
-        
-        setResult({
-          id: params.id as string,
-          documentName: data.documentName || 'Uploaded Document',
-          uploadedAt: data.uploadedAt || new Date().toISOString(),
-          analyzedAt: data.analyzedAt || new Date().toISOString(),
-          totalClauses: complianceResults.length || clauses.length || 0,
-          compliantClauses: compliantCount,
-          highRiskClauses: highRiskCount,
-          mediumRiskClauses: mediumRiskCount,
-          lowRiskClauses: lowRiskCount,
-          overallScore: Math.round(overallScore * 10) / 10,
-          llmProvider: 'FastAPI Backend',
-          processingTime: Math.round(Math.random() * 100) + 50, // Simulate processing time
-          clauses: convertedClauses
-        })
-        }
-      } catch (error) {
-        console.error('Error parsing analysis data:', error)
-
-        // Provide specific error messages based on error type
-        if (error instanceof SyntaxError) {
-          console.error('JSON parsing failed - data may be corrupted or in wrong format')
-          console.error('Raw data preview:', analysisDataRaw?.toString().substring(0, 200) + '...')
-        } else if (error instanceof TypeError) {
-          console.error('Type error - data structure may be invalid')
-        } else {
-          console.error('Unknown error during data processing')
-        }
-
-        // Clear potentially corrupted localStorage item
-        if (!safeLocalStorage.removeItem(`analysis_${params.id}`)) {
-          console.error('Failed to clear corrupted analysis data from localStorage')
-        } else {
-          console.log('Cleared corrupted analysis data from localStorage')
-        }
-
+        // If real-time analysis fails, show error
+        console.error('Real-time analysis failed')
         setResult(null)
+      } catch (error) {
+        console.error('Error fetching real-time analysis:', error)
+        setResult(null)
+      } finally {
+        setLoading(false)
       }
-
-      setLoading(false)
+        
     }
 
     fetchAnalysisData()
@@ -483,9 +429,33 @@ export default function AnalysisResultPage() {
                             <span className="text-sm font-medium">{result.mediumRiskClauses} clauses</span>
                           </div>
                           <div className="flex justify-between items-center">
+                            <span className="text-sm">Low Risk</span>
+                            <span className="text-sm font-medium">{result.lowRiskClauses} clauses</span>
+                          </div>
+                          <div className="flex justify-between items-center">
                             <span className="text-sm">Compliant</span>
                             <span className="text-sm font-medium">{result.compliantClauses} clauses</span>
                           </div>
+                          {result.summary && (
+                            <>
+                              <div className="border-t pt-3 mt-3">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-medium">Risk Level</span>
+                                  <Badge variant={
+                                    result.summary.riskLevel === 'High' ? 'destructive' :
+                                    result.summary.riskLevel === 'Medium' ? 'secondary' :
+                                    'default'
+                                  }>
+                                    {result.summary.riskLevel}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm">Risk Score</span>
+                                <span className="text-sm font-medium">{result.summary.riskScore?.toFixed(1) || 0}%</span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -516,41 +486,85 @@ export default function AnalysisResultPage() {
                 
                 <TabsContent value="recommendations" className="space-y-4">
                   <div className="space-y-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg text-red-600">Immediate Action Required</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ul className="space-y-2">
-                          <li className="flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
-                            <span className="text-sm">Review and update disclosure requirements for material contracts</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
-                            <span className="text-sm">Implement quarterly compliance reporting mechanism</span>
-                          </li>
-                        </ul>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg text-yellow-600">Recommended Improvements</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ul className="space-y-2">
-                          <li className="flex items-start gap-2">
-                            <TrendingUp className="h-4 w-4 text-yellow-600 mt-0.5" />
-                            <span className="text-sm">Clarify related party transaction thresholds</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <TrendingUp className="h-4 w-4 text-yellow-600 mt-0.5" />
-                            <span className="text-sm">Add board diversity requirements for enhanced governance</span>
-                          </li>
-                        </ul>
-                      </CardContent>
-                    </Card>
+                    {result.recommendations && result.recommendations.length > 0 ? (
+                      <>
+                        {/* High Priority Recommendations */}
+                        {result.recommendations.filter(rec => rec.priority === 'high' || rec.type === 'High').length > 0 && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-lg text-red-600">Immediate Action Required</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="space-y-2">
+                                {result.recommendations
+                                  .filter(rec => rec.priority === 'high' || rec.type === 'High')
+                                  .map((rec, index) => (
+                                    <li key={index} className="flex items-start gap-2">
+                                      <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
+                                      <span className="text-sm">{rec.description || rec.title}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Medium Priority Recommendations */}
+                        {result.recommendations.filter(rec => rec.priority === 'medium' || rec.type === 'Medium').length > 0 && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-lg text-yellow-600">Recommended Improvements</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="space-y-2">
+                                {result.recommendations
+                                  .filter(rec => rec.priority === 'medium' || rec.type === 'Medium')
+                                  .map((rec, index) => (
+                                    <li key={index} className="flex items-start gap-2">
+                                      <TrendingUp className="h-4 w-4 text-yellow-600 mt-0.5" />
+                                      <span className="text-sm">{rec.description || rec.title}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Low Priority Recommendations */}
+                        {result.recommendations.filter(rec => rec.priority === 'low').length > 0 && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-lg text-blue-600">Optional Enhancements</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="space-y-2">
+                                {result.recommendations
+                                  .filter(rec => rec.priority === 'low')
+                                  .map((rec, index) => (
+                                    <li key={index} className="flex items-start gap-2">
+                                      <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                                      <span className="text-sm">{rec.description || rec.title}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </>
+                    ) : (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg text-green-600">Analysis Complete</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8 text-muted-foreground">
+                            <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
+                            <p>All clauses have been analyzed for compliance.</p>
+                            <p className="text-sm mt-2">No specific recommendations needed at this time.</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
                 </TabsContent>
               </Tabs>

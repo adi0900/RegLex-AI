@@ -1,6 +1,6 @@
 # PDF Export Features
 
-The SEBI Compliance Dashboard now includes enhanced PDF export functionality that generates professional, comprehensive reports.
+The SEBI Compliance Dashboard now includes enhanced PDF export functionality that generates professional, comprehensive reports using real GCP data and live compliance analysis.
 
 ## Key Features
 

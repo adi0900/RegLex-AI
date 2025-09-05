@@ -1,19 +1,27 @@
 # Development Workflow Guide
 
-This document outlines the current development workflow and processes for the SEBI Compliance Verification System.
+This document outlines the current development workflow and processes for the SEBI Compliance Verification System with GCP integration.
 
 ## 🏗️ Current System Architecture
 
 ```
-┌─────────────────────┐    ┌─────────────────────┐
-│   Development Env    │    │   Production Ready   │
-│                     │    │                     │
-│  Frontend (Next.js) │    │  Frontend (Next.js) │
-│  localhost:3001     │◄──►│  Vercel/Netlify     │
-│                     │    │                     │
-│  Backend (FastAPI)  │    │  Backend (FastAPI)  │
-│  127.0.0.1:8000    │    │  Railway/Heroku     │
-└─────────────────────┘    └─────────────────────┘
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│   Development Env    │    │   Production Ready   │    │   Google Cloud      │
+│                     │    │                     │    │                     │
+│  Frontend (Next.js) │    │  Frontend (Next.js) │    │  Cloud Storage      │
+│  localhost:3001     │◄──►│  Vercel/Netlify     │◄──►│  Documents          │
+│                     │    │                     │    │  Metadata            │
+│  Backend (FastAPI)  │    │  Backend (FastAPI)  │    │  Analysis Results    │
+│  127.0.0.1:8000    │    │  Railway/Heroku     │    │                     │
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+         │                           │                           │
+         ▼                           ▼                           ▼
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│ Real-time Analysis   │    │ Live Dashboard       │    │ GCP Data Storage    │
+│ - Python Pipeline    │    │ - Live Updates       │    │ - Document Files    │
+│ - LLM Integration    │    │ - Real Metrics       │    │ - Processing Results │
+│ - Compliance Check   │    │ - Interactive UI     │    │ - Analytics Data    │
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
 
 ## 🚀 Development Setup Workflow
@@ -32,8 +40,11 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 3. Environment Configuration
+# Backend GCP and API setup
 echo "GEMINI_API_KEY=your_key_here" > src/.env
 echo "GEMINI_API_KEY_2=your_backup_key" >> src/.env
+echo "GCS_BUCKET_NAME=your_gcp_bucket" >> src/.env
+echo "GOOGLE_APPLICATION_CREDENTIALS=/path/to/gcp-credentials.json" >> src/.env
 
 # 4. Frontend Setup
 cd ../Frontend

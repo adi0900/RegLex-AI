@@ -73,9 +73,17 @@ pm.test("Response time is acceptable", function () {
 **Expected Response** (200 OK):
 ```json
 {
-    "message": "SEBI Hack Backend API",
-    "status": "running",
-    "endpoints": ["/upload-pdf/", "/health"]
+    "message": "SEBI Compliance API is running",
+    "status": "healthy",
+    "version": "1.0.0",
+    "endpoints": [
+        {"path": "/", "method": "GET", "description": "API information"},
+        {"path": "/health", "method": "GET", "description": "Health check"},
+        {"path": "/api/dashboard/overview", "method": "GET", "description": "Dashboard overview"},
+        {"path": "/api/dashboard/documents", "method": "GET", "description": "Document list"},
+        {"path": "/api/dashboard/analysis/{id}", "method": "GET", "description": "Document analysis"},
+        {"path": "/api/dashboard/analytics", "method": "GET", "description": "Analytics data"}
+    ]
 }
 ```
 
@@ -240,6 +248,111 @@ pm.test("Invalid file type returns processing error", function () {
     const responseJson = pm.response.json();
     pm.expect(responseJson).to.have.property("detail");
     pm.expect(responseJson.detail).to.include("Processing error");
+});
+```
+
+---
+
+### 6. Dashboard Overview Test
+
+**Purpose**: Test the dashboard overview endpoint with real GCP data.
+
+**Setup**:
+- **Method**: `GET`
+- **URL**: `{{BASE_URL}}/api/dashboard/overview`
+- **Headers**:
+  ```
+  Accept: application/json
+  ```
+
+**Expected Response** (200 OK):
+```json
+{
+    "status": "success",
+    "data": {
+        "totalDocuments": 6,
+        "processedDocuments": 6,
+        "complianceRate": 47.5,
+        "averageScore": 47.5,
+        "highRiskItems": 1,
+        "processingTime": 2100,
+        "backendHealth": "healthy",
+        "lastUpdated": "2025-09-05T..."
+    }
+}
+```
+
+**Test Script**:
+```javascript
+pm.test("Dashboard overview returns real GCP data", function () {
+    pm.response.to.have.status(200);
+
+    const responseJson = pm.response.json();
+    pm.expect(responseJson).to.have.property("status", "success");
+    pm.expect(responseJson.data).to.have.property("totalDocuments");
+    pm.expect(responseJson.data).to.have.property("complianceRate");
+    pm.expect(responseJson.data).to.have.property("backendHealth", "healthy");
+});
+
+pm.test("GCP data validation", function () {
+    const responseJson = pm.response.json();
+    pm.expect(responseJson.data.totalDocuments).to.be.a("number");
+    pm.expect(responseJson.data.complianceRate).to.be.within(0, 100);
+});
+```
+
+---
+
+### 7. Document Analysis Test
+
+**Purpose**: Test individual document analysis with real-time processing.
+
+**Setup**:
+- **Method**: `GET`
+- **URL**: `{{BASE_URL}}/api/dashboard/analyze/{{document_id}}`
+- **Headers**:
+  ```
+  Accept: application/json
+  ```
+
+**Expected Response** (200 OK):
+```json
+{
+    "document_id": "doc_016bf40dc3a9_1757085526",
+    "filename": "Document.pdf",
+    "analysis_timestamp": "2025-09-05T...",
+    "compliance_analysis": {
+        "total_clauses": 15,
+        "compliant_clauses": 12,
+        "compliance_rate": 80.0,
+        "high_risk_clauses": 1,
+        "medium_risk_clauses": 2,
+        "low_risk_clauses": 0
+    },
+    "risk_assessment": {
+        "overall_risk_score": 25.0,
+        "risk_level": "Low",
+        "risk_factors": [...]
+    }
+}
+```
+
+**Test Script**:
+```javascript
+pm.test("Document analysis returns real-time data", function () {
+    pm.response.to.have.status(200);
+
+    const responseJson = pm.response.json();
+    pm.expect(responseJson).to.have.property("document_id");
+    pm.expect(responseJson).to.have.property("compliance_analysis");
+    pm.expect(responseJson.compliance_analysis).to.have.property("total_clauses");
+    pm.expect(responseJson.compliance_analysis).to.have.property("compliance_rate");
+});
+
+pm.test("Analysis data validation", function () {
+    const responseJson = pm.response.json();
+    pm.expect(responseJson.compliance_analysis.total_clauses).to.be.above(0);
+    pm.expect(responseJson.compliance_analysis.compliance_rate).to.be.within(0, 100);
 });
 ```
 

@@ -4,45 +4,57 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green)
 ![Next.js](https://img.shields.io/badge/Next.js-14.2.18-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Google Cloud](https://img.shields.io/badge/Google_Cloud-Active-blue)
 ![Status](https://img.shields.io/badge/Status-Active-success)
 
-A comprehensive AI-powered legal document compliance verification system built for SEBI (Securities and Exchange Board of India) regulations. The system analyzes legal clauses in documents and verifies their compliance using multiple LLM providers and advanced document processing.
+A comprehensive AI-powered legal document compliance verification system built for SEBI (Securities and Exchange Board of India) regulations with **real-time GCP integration**. The system analyzes legal clauses in documents stored in Google Cloud Storage and performs live compliance verification using multiple LLM providers and advanced document processing.
 
 ## 🚀 Features
 
-- ✅ **FastAPI Backend Integration** - Python FastAPI with full CORS support
-- ✅ **Multi-LLM Support** - Claude, Gemini, OpenAI, and Mistral integration
-- ✅ **Document Processing** - PDF text extraction and analysis pipeline
-- ✅ **Real-time Upload** - Document upload with progress tracking
-- ✅ **Health Monitoring** - Backend connectivity and performance monitoring
-- ✅ **Risk Assessment** - Automated categorization and scoring of compliance risks
+- ✅ **Real-time GCP Integration** - Live document storage and retrieval from Google Cloud Storage
+- ✅ **FastAPI Backend** - Python FastAPI with full CORS support and auto-reload
+- ✅ **Multi-LLM Support** - Claude, Gemini, OpenAI, and Mistral integration with fallback
+- ✅ **Real-time Document Analysis** - Live compliance analysis using Python processing pipeline
+- ✅ **Advanced Document Processing** - PDF text extraction and clause segmentation
+- ✅ **GCP Document Storage** - Secure document storage with metadata management
+- ✅ **Live Dashboard Updates** - Real-time statistics from GCP-stored documents
+- ✅ **Risk Assessment Engine** - Automated categorization and scoring of compliance risks
 - ✅ **Modern UI** - Next.js 14 with TypeScript, Tailwind CSS, and Shadcn UI
-- ✅ **Error Handling** - Comprehensive error handling and fallback mechanisms
+- ✅ **Real-time Health Monitoring** - Backend connectivity and performance tracking
 - ✅ **Export Functionality** - Export compliance reports in JSON, CSV, and PDF formats
 - ✅ **Performance Monitoring** - Real-time system performance and memory usage tracking
 
 ## 🏗️ System Architecture
 
 ```
-┌─────────────────┐    HTTP/REST API    ┌──────────────────┐
-│   Next.js 14    │◄──────────────────►│   FastAPI        │
-│   Frontend       │      CORS Enabled   │   Backend        │
-│                 │                     │                  │
-│  - TypeScript   │                     │  - Python 3.11+  │
-│  - Tailwind CSS │                     │  - Gemini API    │
-│  - Shadcn UI    │                     │  - PDF Processing │
-│  - React Query  │                     │  - ML Pipeline   │
-└─────────────────┘                     └──────────────────┘
-         │                                       │
-         │                                       │
-         ▼                                       ▼
-┌─────────────────┐                     ┌──────────────────┐
-│  Browser/Client │                     │  External APIs   │
-│  - File Upload  │                     │  - Gemini AI     │
-│  - Real-time UI │                     │  - Claude        │
-│  - Progress     │                     │  - OpenAI        │
-└─────────────────┘                     │  - Mistral       │
-                                        └──────────────────┘
+┌─────────────────┐    HTTP/REST API    ┌──────────────────┐    ┌──────────────────┐
+│   Next.js 14    │◄──────────────────►│   FastAPI        │◄──►│ Google Cloud     │
+│   Frontend       │      CORS Enabled   │   Backend        │    │ Storage          │
+│                 │                     │                  │    │                  │
+│  - TypeScript   │                     │  - Python 3.11+  │    │  - Documents      │
+│  - Tailwind CSS │                     │  - Gemini API    │    │  - Metadata       │
+│  - Shadcn UI    │                     │  - PDF Processing│    │  - Analysis       │
+│  - React Query  │                     │  - ML Pipeline   │    │  - Results        │
+└─────────────────┘                     └──────────────────┘    └──────────────────┘
+         │                                       │                        │
+         │                                       │                        │
+         ▼                                       ▼                        ▼
+┌─────────────────┐                     ┌──────────────────┐    ┌──────────────────┐
+│  Browser/Client │                     │  Processing      │    │  Live Data       │
+│  - File Upload  │                     │  Pipeline        │    │  Storage         │
+│  - Real-time UI │                     │  - Clause Extract│    │  - Real Metrics  │
+│  - Live Updates │                     │  - Risk Analysis │    │  - Compliance    │
+└─────────────────┘                     │  - LLM Verify    │    │  - Statistics    │
+                                        └──────────────────┘    └──────────────────┘
+                                                │
+                                                ▼
+                                     ┌──────────────────┐
+                                     │  External APIs   │
+                                     │  - Gemini AI     │
+                                     │  - Claude        │
+                                     │  - OpenAI        │
+                                     │  - Mistral       │
+                                     └──────────────────┘
 ```
 
 ## 🛠️ Tech Stack
@@ -101,12 +113,14 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create .env file
+# Create .env file with GCP and API keys
 echo "GEMINI_API_KEY=your_gemini_api_key_here" > src/.env
 echo "GEMINI_API_KEY_2=your_backup_gemini_key_here" >> src/.env
+echo "GCS_BUCKET_NAME=your_gcp_bucket_name" >> src/.env
+echo "GOOGLE_APPLICATION_CREDENTIALS=path/to/your/gcp-credentials.json" >> src/.env
 
-# Start the FastAPI server
-python app.py dev
+# Start the FastAPI server with auto-reload
+python -m uvicorn src.pipeline.run_pipeline:app --host 127.0.0.1 --port 8000 --reload
 # Server runs on http://127.0.0.1:8000
 ```
 
@@ -139,13 +153,15 @@ npm run dev
 
 ## 🎯 Usage
 
-### Document Upload and Analysis
+### Document Upload and Real-time Analysis
 
 1. **Navigate to Dashboard**: Go to `http://localhost:3001/dashboard`
 2. **Upload Document**: Drag and drop a PDF file or click to browse
-3. **Select Language**: Choose analysis language (default: English)
-4. **View Results**: Real-time processing with progress tracking
-5. **Export Reports**: Download compliance reports in multiple formats
+3. **Real-time Processing**: Document is stored in GCP and processed immediately
+4. **Live Analysis**: Real-time compliance analysis using Python pipeline
+5. **View Results**: Interactive dashboard with live GCP data updates
+6. **Document Analysis**: Click on any document for detailed clause-by-clause analysis
+7. **Export Reports**: Download compliance reports in JSON, CSV, and PDF formats
 
 ### API Integration
 
@@ -154,6 +170,14 @@ The system provides REST APIs for integration:
 ```javascript
 // Health check
 GET /health
+
+// Dashboard endpoints (real GCP data)
+GET /api/dashboard/overview
+GET /api/dashboard/documents
+GET /api/dashboard/analytics
+GET /api/dashboard/notifications
+GET /api/dashboard/timeline
+GET /api/dashboard/analysis/{document_id}
 
 // Document upload
 POST /upload-pdf/
@@ -204,6 +228,10 @@ NODE_ENV=development
 
 #### Backend (.env)
 ```bash
+# GCP Configuration (Required for real data)
+GCS_BUCKET_NAME=your_gcp_bucket_name
+GOOGLE_APPLICATION_CREDENTIALS=path/to/your/gcp-credentials.json
+
 # AI API Keys
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_API_KEY_2=your_backup_gemini_key_here
@@ -218,13 +246,15 @@ MISTRAL_API_KEY=your_mistral_key_here
 
 ```
 Sebi-Hack-Final/
-├── Backend/                    # FastAPI Backend
-│   ├── src/                   
+├── Backend/                    # FastAPI Backend with GCP
+│   ├── src/
 │   │   ├── pipeline/          # Main processing pipeline
 │   │   ├── extraction/        # PDF text extraction
 │   │   ├── summerizer/        # Document summarization
 │   │   ├── compliance_checker/# Compliance verification
-│   │   └── llm_provider/      # LLM integrations
+│   │   ├── llm_provider/      # LLM integrations
+│   │   └── storage/           # GCP Storage integration
+│   │       └── gcs_client.py  # Google Cloud Storage client
 │   ├── app.py                 # Main FastAPI application
 │   └── requirements.txt       # Python dependencies
 │
@@ -277,15 +307,34 @@ open http://127.0.0.1:8000/docs
 ### API Testing with Postman
 See [postman-guide.md](./postman-guide.md) for comprehensive API testing procedures.
 
+## ☁️ GCP Setup (Required for Real Data)
+
+### Prerequisites
+1. **Google Cloud Project** - Create a GCP project
+2. **GCS Bucket** - Create a Cloud Storage bucket for document storage
+3. **Service Account** - Create a service account with Storage Admin permissions
+4. **Credentials** - Download the service account key JSON file
+
+### GCP Configuration
+```bash
+# Set environment variables
+export GCS_BUCKET_NAME=your-sebi-compliance-bucket
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+
+# Verify GCP access
+python -c "from google.cloud import storage; client = storage.Client(); print('GCP Connected:', client.project)"
+```
+
 ## 🚀 Deployment
 
 ### Development
 ```bash
-# Start both services
-# Terminal 1 - Backend
-cd Backend && python app.py dev
+# Terminal 1 - Backend with GCP
+cd Backend
+source venv/bin/activate
+python -m uvicorn src.pipeline.run_pipeline:app --host 127.0.0.1 --port 8000 --reload
 
-# Terminal 2 - Frontend  
+# Terminal 2 - Frontend
 cd Frontend && npm run dev
 ```
 
@@ -299,17 +348,19 @@ npm run start
 # Backend production (with gunicorn)
 cd Backend
 pip install gunicorn
-gunicorn -k uvicorn.workers.UvicornWorker app:app --host 0.0.0.0 --port 8000
+gunicorn -k uvicorn.workers.UvicornWorker src.pipeline.run_pipeline:app --host 0.0.0.0 --port 8000
 ```
 
 ## 📊 Features Deep Dive
 
-### Document Processing Pipeline
-1. **PDF Upload**: Multi-format file support with validation
-2. **Text Extraction**: Advanced PDF parsing and text extraction
-3. **AI Analysis**: Multi-LLM analysis for compliance verification
-4. **Risk Assessment**: Automated risk categorization and scoring
-5. **Report Generation**: Comprehensive compliance reports
+### Real-time GCP Document Processing Pipeline
+1. **PDF Upload**: Multi-format file support with GCP storage validation
+2. **GCP Storage**: Secure document storage with metadata management
+3. **Real-time Text Extraction**: Advanced PDF parsing using Python pipeline
+4. **Live AI Analysis**: Multi-LLM analysis for compliance verification
+5. **Dynamic Risk Assessment**: Automated risk categorization and scoring
+6. **Live Dashboard Updates**: Real-time statistics from GCP data
+7. **Professional Report Generation**: Comprehensive compliance reports
 
 ### Real-time Monitoring
 - Backend health status monitoring
