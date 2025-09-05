@@ -31,6 +31,10 @@ interface Clause {
   regulation: string
   recommendation: string
   confidence: number
+  isCompliant?: boolean
+  riskScore?: number
+  category?: string
+  impact?: string
 }
 
 interface AnalysisResult {
@@ -56,47 +60,82 @@ export default function AnalysisResultPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Load real analysis data from localStorage with safe parsing
-    const analysisData = safeLocalStorage.getItem(`analysis_${params.id}`)
-    
-    if (analysisData) {
+    const fetchAnalysisData = async () => {
+      let analysisDataRaw: any = null
       try {
-        let data
+        console.log(`Fetching analysis for document ID: ${params.id}`)
+        
+        // First try to fetch from the backend API
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+        const response = await fetch(`${apiUrl}/api/dashboard/analysis/${params.id}`)
+        
+        if (response.ok) {
+          const apiData = await response.json()
+          console.log('API Response:', apiData)
+          
+          if (apiData.status === 'success' && apiData.data) {
+            const data = apiData.data
+            
+            // Convert backend data format to frontend format
+            const convertedClauses = data.clauses?.map((clause: any, index: number) => ({
+              id: clause.id || `clause_${index + 1}`,
+              text: clause.text || `Clause ${index + 1}`,
+              riskLevel: clause.riskLevel === 'unknown' ? 'medium' : clause.riskLevel || 'medium',
+              regulation: clause.matched_rules?.[0]?.rule || 'SEBI Regulations',
+              recommendation: clause.mitigation || clause.explanation || 'Review clause for compliance',
+              confidence: clause.confidenceScore ? Math.round(clause.confidenceScore * 100) : 85,
+              isCompliant: clause.isCompliant || false,
+              riskScore: clause.riskScore || 0,
+              category: clause.category || 'General',
+              impact: clause.impact || 'No specific impact identified'
+            })) || []
 
-        // Handle both string and object formats (defensive programming)
-        if (typeof analysisData === 'string') {
-          // If it's a string, check if it's valid JSON before parsing
-          if (analysisData.trim().startsWith('{') || analysisData.trim().startsWith('[')) {
-            data = JSON.parse(analysisData)
-          } else {
-            // If it's not JSON, log warning and skip
-            console.warn('Invalid JSON format in localStorage for analysis data:', analysisData.substring(0, 100) + '...')
+            setResult({
+              id: data.id,
+              documentName: data.fileName || 'Unknown Document',
+              uploadedAt: data.uploadedAt,
+              analyzedAt: data.processedAt || data.uploadedAt,
+              totalClauses: data.totalClauses || convertedClauses.length,
+              compliantClauses: data.compliantClauses || 0,
+              highRiskClauses: data.highRiskClauses || 0,
+              mediumRiskClauses: data.mediumRiskClauses || 0,
+              lowRiskClauses: data.lowRiskClauses || 0,
+              overallScore: data.overallScore || data.complianceRate || 0,
+              llmProvider: 'FastAPI Backend',
+              processingTime: Math.round(Math.random() * 100) + 50,
+              clauses: convertedClauses
+            })
+            
+            console.log('Successfully loaded data from API')
             setLoading(false)
             return
           }
-        } else if (typeof analysisData === 'object' && analysisData !== null) {
-          // If it's already an object, use it directly
-          data = analysisData
-        } else {
-          console.warn('Unexpected data type in localStorage:', typeof analysisData, analysisData)
-          setLoading(false)
-          return
         }
+        
+        // Fallback to localStorage if API fails
+        console.log('API failed, trying localStorage...')
+        analysisDataRaw = safeLocalStorage.getItem(`analysis_${params.id}`)
+        
+        if (analysisDataRaw) {
+          let data
+          if (typeof analysisDataRaw === 'string') {
+            if (analysisDataRaw.trim().startsWith('{') || analysisDataRaw.trim().startsWith('[')) {
+              data = JSON.parse(analysisDataRaw)
+            } else {
+              console.warn('Invalid JSON format in localStorage')
+              setLoading(false)
+              return
+            }
+          } else {
+            data = analysisDataRaw
+          }
 
-        // Validate data structure
-        if (!data || typeof data !== 'object') {
-          console.error('Invalid data structure from localStorage:', data)
-          setLoading(false)
-          return
-        }
+          const complianceResults = Array.isArray(data.compliance_results) ? data.compliance_results : []
+          const clauses = Array.isArray(data.clauses) ? data.clauses : []
 
-        const complianceResults = Array.isArray(data.compliance_results) ? data.compliance_results : []
-        const clauses = Array.isArray(data.clauses) ? data.clauses : []
-
-        // Calculate stats with safe filtering
-        const compliantCount = complianceResults.filter((r: any) =>
-          r && typeof r.is_compliant === 'boolean' && r.is_compliant
-        ).length
+          const compliantCount = complianceResults.filter((r: any) =>
+            r && typeof r.is_compliant === 'boolean' && r.is_compliant
+          ).length
 
         const highRiskCount = complianceResults.filter((r: any) =>
           r && r.risk_assessment && r.risk_assessment.severity === 'High'
@@ -145,13 +184,14 @@ export default function AnalysisResultPage() {
           processingTime: Math.round(Math.random() * 100) + 50, // Simulate processing time
           clauses: convertedClauses
         })
+        }
       } catch (error) {
         console.error('Error parsing analysis data:', error)
 
         // Provide specific error messages based on error type
         if (error instanceof SyntaxError) {
           console.error('JSON parsing failed - data may be corrupted or in wrong format')
-          console.error('Raw data preview:', analysisData?.substring(0, 200) + '...')
+          console.error('Raw data preview:', analysisDataRaw?.toString().substring(0, 200) + '...')
         } else if (error instanceof TypeError) {
           console.error('Type error - data structure may be invalid')
         } else {
@@ -167,12 +207,11 @@ export default function AnalysisResultPage() {
 
         setResult(null)
       }
-    } else {
-      // Fallback to mock data if no real data found
-      setResult(null)
+
+      setLoading(false)
     }
-    
-    setLoading(false)
+
+    fetchAnalysisData()
   }, [params.id])
 
   const getRiskBadgeColor = (riskLevel: string) => {
@@ -364,7 +403,14 @@ export default function AnalysisResultPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                          <p className="text-sm font-medium mb-2">Clause {index + 1}</p>
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="text-sm font-medium">Clause {index + 1}</p>
+                            {clause.isCompliant !== undefined && (
+                              <Badge variant={clause.isCompliant ? "default" : "destructive"}>
+                                {clause.isCompliant ? "✓ Compliant" : "✗ Non-compliant"}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
                             {clause.text}
                           </p>
@@ -374,6 +420,11 @@ export default function AnalysisResultPage() {
                             {getRiskIcon(clause.riskLevel)}
                             {clause.riskLevel}
                           </Badge>
+                          {clause.riskScore !== undefined && clause.riskScore > 0 && (
+                            <Badge variant="secondary">
+                              Risk Score: {clause.riskScore}
+                            </Badge>
+                          )}
                           <Badge variant="outline">
                             {clause.confidence}% confidence
                           </Badge>
@@ -387,12 +438,28 @@ export default function AnalysisResultPage() {
                             {clause.regulation}
                             <ExternalLink className="h-3 w-3" />
                           </p>
+                          {clause.category && (
+                            <div className="mt-2">
+                              <p className="text-sm font-medium mb-1">Category</p>
+                              <Badge variant="outline" className="text-xs">
+                                {clause.category}
+                              </Badge>
+                            </div>
+                          )}
                         </div>
                         <div>
                           <p className="text-sm font-medium mb-1">Recommendation</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground mb-2">
                             {clause.recommendation}
                           </p>
+                          {clause.impact && (
+                            <div>
+                              <p className="text-sm font-medium mb-1">Impact Assessment</p>
+                              <p className="text-xs text-muted-foreground">
+                                {clause.impact}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </motion.div>

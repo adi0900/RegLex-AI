@@ -166,24 +166,30 @@ export default function UploadPage() {
 
   const handleViewResults = useCallback(() => {
     if (uploadState.result && uploadState.file) {
-      // Store the results in localStorage for the analysis page
-      const analysisData = {
-        fileName: uploadState.file.name,
-        fileSize: `${(uploadState.file.size / 1024 / 1024).toFixed(2)} MB`,
-        uploadedAt: new Date().toISOString(),
-        processedAt: new Date().toISOString(),
-        summary: uploadState.result.summary || 'Analysis completed successfully',
-        timelines: uploadState.result.timelines || {},
-        clauses: uploadState.result.clauses || [],
-        compliance_results: uploadState.result.compliance_results || {},
-        overallScore: calculateOverallScore(uploadState.result)
+      // Use the document_id returned from the backend API
+      const documentId = uploadState.result.document_id
+      
+      if (documentId) {
+        // Navigate directly to the analysis page - data is stored in GCS
+        router.push(`/dashboard/analysis/${documentId}`)
+      } else {
+        // Fallback: create localStorage entry for older uploads
+        const analysisData = {
+          fileName: uploadState.file.name,
+          fileSize: `${(uploadState.file.size / 1024 / 1024).toFixed(2)} MB`,
+          uploadedAt: new Date().toISOString(),
+          processedAt: new Date().toISOString(),
+          summary: uploadState.result.summary || 'Analysis completed successfully',
+          timelines: uploadState.result.timelines || {},
+          clauses: uploadState.result.clauses || [],
+          compliance_results: uploadState.result.compliance_results || {},
+          overallScore: calculateOverallScore(uploadState.result)
+        }
+        
+        const fallbackDocumentId = `doc_${Date.now()}`
+        localStorage.setItem(`analysis_${fallbackDocumentId}`, JSON.stringify(analysisData))
+        router.push(`/dashboard/analysis/${fallbackDocumentId}`)
       }
-      
-      const documentId = `doc_${Date.now()}`
-      localStorage.setItem(`analysis_${documentId}`, JSON.stringify(analysisData))
-      
-      // Navigate to analysis page
-      router.push(`/dashboard/analysis/${documentId}`)
     }
   }, [uploadState.result, uploadState.file, router])
 

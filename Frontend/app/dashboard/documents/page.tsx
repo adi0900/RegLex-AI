@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -22,109 +22,77 @@ import {
   AlertTriangle,
   ArrowUpDown,
   RefreshCw,
-  Share
+  Share,
+  Loader2
 } from 'lucide-react'
 
 interface Document {
   id: string
-  name: string
-  uploadDate: string
-  analyzedDate: string
-  status: 'completed' | 'processing' | 'failed' | 'pending'
+  fileName: string
+  fileSize: string
+  uploadedAt: string
+  processedAt: string
+  summary: string
   overallScore: number
   riskLevel: 'high' | 'medium' | 'low' | 'compliant'
   totalClauses: number
   compliantClauses: number
+  nonCompliantClauses: number
   highRiskClauses: number
-  fileSize: string
-  fileType: string
-  llmProvider: string
+  mediumRiskClauses: number
+  lowRiskClauses: number
+  complianceRate: number
+  status: 'completed' | 'processing' | 'failed' | 'pending' | 'unknown'
+  language: string
+  contentType: string
 }
 
 export default function DocumentsPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState('uploadDate')
+  const [sortBy, setSortBy] = useState('uploadedAt')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterRisk, setFilterRisk] = useState('all')
-  
-  const documents: Document[] = [
-    {
-      id: '1',
-      name: 'Contract_Draft_v3.pdf',
-      uploadDate: '2024-01-15T10:30:00Z',
-      analyzedDate: '2024-01-15T10:32:15Z',
-      status: 'completed',
-      overallScore: 67.7,
-      riskLevel: 'medium',
-      totalClauses: 65,
-      compliantClauses: 44,
-      highRiskClauses: 8,
-      fileSize: '2.4 MB',
-      fileType: 'PDF',
-      llmProvider: 'Gemini Pro'
-    },
-    {
-      id: '2',
-      name: 'Disclosure_Statement_Q1.docx',
-      uploadDate: '2024-01-14T15:20:00Z',
-      analyzedDate: '2024-01-14T15:22:30Z',
-      status: 'completed',
-      overallScore: 89.2,
-      riskLevel: 'low',
-      totalClauses: 32,
-      compliantClauses: 29,
-      highRiskClauses: 1,
-      fileSize: '1.8 MB',
-      fileType: 'DOCX',
-      llmProvider: 'Claude'
-    },
-    {
-      id: '3',
-      name: 'Board_Resolution_Jan2024.pdf',
-      uploadDate: '2024-01-13T09:45:00Z',
-      analyzedDate: '',
-      status: 'processing',
-      overallScore: 0,
-      riskLevel: 'medium',
-      totalClauses: 0,
-      compliantClauses: 0,
-      highRiskClauses: 0,
-      fileSize: '890 KB',
-      fileType: 'PDF',
-      llmProvider: 'GPT-4'
-    },
-    {
-      id: '4',
-      name: 'Compliance_Manual_2024.pdf',
-      uploadDate: '2024-01-12T14:15:00Z',
-      analyzedDate: '2024-01-12T14:18:45Z',
-      status: 'completed',
-      overallScore: 92.5,
-      riskLevel: 'compliant',
-      totalClauses: 128,
-      compliantClauses: 125,
-      highRiskClauses: 0,
-      fileSize: '5.2 MB',
-      fileType: 'PDF',
-      llmProvider: 'Mistral'
-    },
-    {
-      id: '5',
-      name: 'Risk_Assessment_Report.pdf',
-      uploadDate: '2024-01-11T11:00:00Z',
-      analyzedDate: '',
-      status: 'failed',
-      overallScore: 0,
-      riskLevel: 'high',
-      totalClauses: 0,
-      compliantClauses: 0,
-      highRiskClauses: 0,
-      fileSize: '3.1 MB',
-      fileType: 'PDF',
-      llmProvider: 'Gemini Pro'
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchDocuments = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const response = await fetch(`${apiUrl}/api/dashboard/documents`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      if (result.status === 'success') {
+        setDocuments(result.data || [])
+      } else {
+        throw new Error(result.message || 'Failed to fetch documents')
+      }
+    } catch (err) {
+      console.error('Error fetching documents:', err)
+      setError(err instanceof Error ? err.message : 'An error occurred while fetching documents')
+      
+      // Fallback to empty array on error
+      setDocuments([])
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
+
+  useEffect(() => {
+    fetchDocuments()
+  }, [])
+
+  const handleRefresh = () => {
+    fetchDocuments()
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -159,7 +127,7 @@ export default function DocumentsPage() {
   }
 
   const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = doc.fileName.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = filterStatus === 'all' || doc.status === filterStatus
     const matchesRisk = filterRisk === 'all' || doc.riskLevel === filterRisk
     return matchesSearch && matchesStatus && matchesRisk
@@ -167,10 +135,10 @@ export default function DocumentsPage() {
 
   const sortedDocuments = [...filteredDocuments].sort((a, b) => {
     switch (sortBy) {
-      case 'name':
-        return a.name.localeCompare(b.name)
-      case 'uploadDate':
-        return new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
+      case 'fileName':
+        return a.fileName.localeCompare(b.fileName)
+      case 'uploadedAt':
+        return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
       case 'score':
         return b.overallScore - a.overallScore
       default:
@@ -182,9 +150,12 @@ export default function DocumentsPage() {
     router.push(`/dashboard/analysis/${id}`)
   }
 
-  const handleDeleteDocument = (id: string) => {
+  const handleDeleteDocument = async (id: string) => {
     if (confirm('Are you sure you want to delete this document?')) {
+      // TODO: Implement delete functionality with backend API
       console.log('Deleting document:', id)
+      // For now, just refresh the documents list
+      handleRefresh()
     }
   }
 
@@ -216,15 +187,27 @@ export default function DocumentsPage() {
               <div className="flex items-center gap-4 mb-2">
                 <FileText className="h-8 w-8" />
                 <h1 className="text-3xl font-bold">Document Management</h1>
+                {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
               </div>
               <p className="text-muted-foreground">
-                View and manage all your analyzed documents
+                View and manage all your analyzed documents from Google Cloud Storage
               </p>
+              {error && (
+                <p className="text-red-600 dark:text-red-400 text-sm mt-2">
+                  {error}
+                </p>
+              )}
             </div>
-            <Button onClick={() => router.push('/dashboard')}>
-              <Upload className="h-4 w-4 mr-2" />
-              Upload New Document
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button onClick={() => router.push('/dashboard/upload')}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload New Document
+              </Button>
+            </div>
           </div>
         </motion.div>
 
@@ -300,8 +283,8 @@ export default function DocumentsPage() {
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="uploadDate">Upload Date</SelectItem>
-                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="uploadedAt">Upload Date</SelectItem>
+                    <SelectItem value="fileName">Name</SelectItem>
                     <SelectItem value="score">Score</SelectItem>
                   </SelectContent>
                 </Select>
@@ -345,8 +328,17 @@ export default function DocumentsPage() {
               <CardTitle>Documents ({sortedDocuments.length})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {sortedDocuments.map((document, index) => (
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">Loading documents from Google Cloud Storage...</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {sortedDocuments.map((document, index) => (
                   <motion.div
                     key={document.id}
                     className="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
@@ -358,7 +350,7 @@ export default function DocumentsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <FileText className="h-5 w-5 text-blue-600" />
-                          <h3 className="font-semibold text-lg">{document.name}</h3>
+                          <h3 className="font-semibold text-lg">{document.fileName}</h3>
                           {getStatusBadge(document.status)}
                           {getRiskBadge(document.riskLevel, document.status)}
                         </div>
@@ -366,16 +358,16 @@ export default function DocumentsPage() {
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            {new Date(document.uploadDate).toLocaleDateString()}
+                            {new Date(document.uploadedAt).toLocaleDateString()}
                           </div>
                           <div className="flex items-center gap-1">
                             <FileText className="h-4 w-4" />
-                            {document.fileType} • {document.fileSize}
+                            {document.contentType?.includes('pdf') ? 'PDF' : 'DOC'} • {document.fileSize}
                           </div>
                           {document.status === 'completed' && (
                             <>
                               <div>
-                                Score: <span className="font-medium">{document.overallScore}%</span>
+                                Score: <span className="font-medium">{document.overallScore?.toFixed(1) || 0}%</span>
                               </div>
                               <div>
                                 Clauses: <span className="font-medium">{document.compliantClauses}/{document.totalClauses}</span>
@@ -384,14 +376,20 @@ export default function DocumentsPage() {
                           )}
                           {document.status === 'processing' && (
                             <div className="col-span-2">
-                              <span className="font-medium">Processing with {document.llmProvider}...</span>
+                              <span className="font-medium">Processing document...</span>
                             </div>
                           )}
                         </div>
                         
-                        {document.status === 'completed' && document.analyzedDate && (
+                        {document.status === 'completed' && document.processedAt && (
                           <p className="text-xs text-muted-foreground mt-2">
-                            Analyzed on {new Date(document.analyzedDate).toLocaleString()} using {document.llmProvider}
+                            Analyzed on {new Date(document.processedAt).toLocaleString()} • Language: {document.language}
+                          </p>
+                        )}
+                        
+                        {document.summary && document.status === 'completed' && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {document.summary.length > 150 ? document.summary.substring(0, 150) + '...' : document.summary}
                           </p>
                         )}
                       </div>
@@ -404,7 +402,7 @@ export default function DocumentsPage() {
                             onClick={() => handleViewDocument(document.id)}
                           >
                             <Eye className="h-4 w-4 mr-2" />
-                            View Results
+                            Analysis
                           </Button>
                         )}
                         
@@ -434,20 +432,30 @@ export default function DocumentsPage() {
                       </div>
                     </div>
                   </motion.div>
-                ))}
-              </div>
-              
-              {sortedDocuments.length === 0 && (
-                <div className="text-center py-12">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400 mb-2">No documents found</p>
-                  <p className="text-sm text-gray-500">
-                    {searchTerm || filterStatus !== 'all' || filterRisk !== 'all' 
-                      ? 'Try adjusting your filters'
-                      : 'Upload your first document to get started'
-                    }
-                  </p>
+                  ))}
                 </div>
+                
+                {!loading && sortedDocuments.length === 0 && (
+                  <div className="text-center py-12">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400 mb-2">No documents found</p>
+                    <p className="text-sm text-gray-500">
+                      {searchTerm || filterStatus !== 'all' || filterRisk !== 'all' 
+                        ? 'Try adjusting your filters'
+                        : error 
+                          ? 'Unable to load documents from Google Cloud Storage'
+                          : 'Upload your first document to get started'
+                      }
+                    </p>
+                    {error && (
+                      <Button variant="outline" className="mt-4" onClick={handleRefresh}>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Try Again
+                      </Button>
+                    )}
+                  </div>
+                )}
+                </>
               )}
             </CardContent>
           </Card>

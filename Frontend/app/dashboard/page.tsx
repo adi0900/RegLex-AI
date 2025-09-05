@@ -29,13 +29,18 @@ import {
 interface DashboardData {
   overview: {
     totalDocuments: number
+    processedDocuments: number
     complianceRate: number
     averageScore: number
     highRiskItems: number
     processingTime: number
     backendHealth: string
+    lastUpdated: string
   } | null
   documents: any[] | null
+  notifications: any[] | null
+  timeline: any[] | null
+  analytics: any | null
   isLoading: boolean
   error: string | null
   lastUpdated: Date | null
@@ -45,33 +50,57 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     overview: null,
     documents: null,
+    notifications: null,
+    timeline: null,
+    analytics: null,
     isLoading: true,
     error: null,
     lastUpdated: null
   })
 
-  // Simple fetch function without polling
+  // Comprehensive fetch function for all dashboard data
   const fetchDashboardData = async () => {
     try {
       setDashboardData(prev => ({ ...prev, isLoading: true, error: null }))
       
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      
       // Test connectivity first
-      const healthResponse = await fetch('http://127.0.0.1:8000/health')
+      const healthResponse = await fetch(`${apiUrl}/health`)
       if (!healthResponse.ok) {
         throw new Error('Backend not available')
       }
 
-      // Fetch overview data
-      const overviewResponse = await fetch('http://127.0.0.1:8000/api/dashboard/overview')
-      const overviewData = await overviewResponse.json()
+      // Fetch all dashboard data in parallel
+      const [overviewResponse, documentsResponse, notificationsResponse, timelineResponse, analyticsResponse] = await Promise.all([
+        fetch(`${apiUrl}/api/dashboard/overview`),
+        fetch(`${apiUrl}/api/dashboard/documents`),
+        fetch(`${apiUrl}/api/dashboard/notifications`),
+        fetch(`${apiUrl}/api/dashboard/timeline`),
+        fetch(`${apiUrl}/api/dashboard/analytics`)
+      ])
 
-      // Fetch documents data
-      const documentsResponse = await fetch('http://127.0.0.1:8000/api/dashboard/documents')
+      // Parse all responses
+      const overviewData = await overviewResponse.json()
       const documentsData = await documentsResponse.json()
+      const notificationsData = await notificationsResponse.json()
+      const timelineData = await timelineResponse.json()
+      const analyticsData = await analyticsResponse.json()
+
+      console.log('Dashboard API responses:', {
+        overview: overviewData,
+        documents: documentsData,
+        notifications: notificationsData,
+        timeline: timelineData,
+        analytics: analyticsData
+      })
 
       setDashboardData({
-        overview: overviewData.data,
+        overview: overviewData.data || overviewData,
         documents: documentsData.data || [],
+        notifications: notificationsData.data || [],
+        timeline: timelineData.data || [],
+        analytics: analyticsData.data || null,
         isLoading: false,
         error: null,
         lastUpdated: new Date()
@@ -92,7 +121,7 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [])
 
-  const { overview, documents, isLoading, error, lastUpdated } = dashboardData
+  const { overview, documents, notifications, timeline, analytics, isLoading, error, lastUpdated } = dashboardData
 
   return (
     <div className="space-y-6">
@@ -202,7 +231,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Overview Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
@@ -213,7 +242,22 @@ export default function DashboardPage() {
               {isLoading ? '...' : overview?.totalDocuments || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Documents processed
+              Documents uploaded
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Processed</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {isLoading ? '...' : overview?.processedDocuments || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Analysis completed
             </p>
           </CardContent>
         </Card>
@@ -238,7 +282,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? '...' : overview?.averageScore || 0}
+              {isLoading ? '...' : overview?.averageScore?.toFixed(1) || 0}
             </div>
             <p className="text-xs text-muted-foreground">
               Overall performance
@@ -280,7 +324,11 @@ export default function DashboardPage() {
                 </div>
               ) : documents && documents.length > 0 ? (
                 documents.slice(0, 3).map((doc, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div 
+                    key={doc.id || index} 
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+                    onClick={() => doc.status === 'completed' && (window.location.href = `/dashboard/analysis/${doc.id}`)}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center">
                         <FileText className="h-4 w-4 text-blue-600" />
@@ -288,13 +336,28 @@ export default function DashboardPage() {
                       <div>
                         <p className="font-medium text-sm">{doc.fileName || `Document ${index + 1}`}</p>
                         <p className="text-xs text-muted-foreground">
-                          Score: {doc.overallScore || 75}% • {new Date().toLocaleDateString()}
+                          Score: {doc.overallScore?.toFixed(1) || 0}% • {new Date(doc.uploadedAt || doc.processedAt).toLocaleDateString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {doc.totalClauses || 0} clauses • {doc.fileSize}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="default">
-                      {doc.riskLevel || 'low'}
-                    </Badge>
+                    <div className="text-right">
+                      <Badge 
+                        variant={
+                          doc.riskLevel === 'high' ? 'destructive' : 
+                          doc.riskLevel === 'medium' ? 'secondary' : 
+                          doc.riskLevel === 'low' || doc.riskLevel === 'compliant' ? 'default' : 
+                          'outline'
+                        }
+                      >
+                        {doc.riskLevel || 'unknown'}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {doc.status === 'completed' ? 'Ready' : doc.status || 'Processing'}
+                      </p>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -305,6 +368,15 @@ export default function DashboardPage() {
                     <Button size="sm">
                       <Plus className="h-4 w-4 mr-2" />
                       Upload First Document
+                    </Button>
+                  </Link>
+                </div>
+              )}
+              {documents && documents.length > 3 && (
+                <div className="text-center pt-4 border-t">
+                  <Link href="/dashboard/documents">
+                    <Button variant="outline" size="sm">
+                      View All Documents ({documents.length})
                     </Button>
                   </Link>
                 </div>
@@ -353,13 +425,23 @@ export default function DashboardPage() {
                   <span className="text-sm font-medium">Notifications</span>
                 </div>
                 <Badge variant="secondary">
-                  0 unread
+                  {notifications ? notifications.filter((n: any) => !n.read).length : 0} unread
                 </Badge>
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
+                  <span className="text-sm font-medium">Recent Activity</span>
+                </div>
+                <Badge variant="outline">
+                  {timeline ? timeline.length : 0} events
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
                   <span className="text-sm font-medium">Health Status</span>
                 </div>
                 <Badge variant="default">
@@ -367,6 +449,104 @@ export default function DashboardPage() {
                   {overview?.backendHealth || 'Healthy'}
                 </Badge>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Analytics and Timeline */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Notifications */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Recent Notifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  Loading notifications...
+                </div>
+              ) : notifications && notifications.length > 0 ? (
+                notifications.slice(0, 4).map((notification: any, index: number) => (
+                  <div key={notification.id || index} className="flex items-start gap-3 p-3 border rounded-lg">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      notification.type === 'warning' ? 'bg-yellow-500' :
+                      notification.type === 'error' ? 'bg-red-500' :
+                      notification.type === 'success' ? 'bg-green-500' :
+                      'bg-blue-500'
+                    }`} />
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{notification.title}</p>
+                      <p className="text-xs text-muted-foreground">{notification.message}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(notification.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge variant={notification.priority === 'high' ? 'destructive' : 'outline'} className="text-xs">
+                      {notification.priority}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No notifications</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Timeline */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Processing Timeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  Loading timeline...
+                </div>
+              ) : timeline && timeline.length > 0 ? (
+                timeline.slice(0, 4).map((event: any, index: number) => (
+                  <div key={event.id || index} className="flex items-start gap-3 p-3 border rounded-lg">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      event.type === 'upload' ? 'bg-blue-100 dark:bg-blue-900' :
+                      event.type === 'processing' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                      event.type === 'completed' ? 'bg-green-100 dark:bg-green-900' :
+                      'bg-gray-100 dark:bg-gray-900'
+                    }`}>
+                      {event.type === 'upload' && <Upload className="h-4 w-4 text-blue-600" />}
+                      {event.type === 'processing' && <Zap className="h-4 w-4 text-yellow-600" />}
+                      {event.type === 'completed' && <CheckCircle className="h-4 w-4 text-green-600" />}
+                      {!['upload', 'processing', 'completed'].includes(event.type) && <Activity className="h-4 w-4 text-gray-600" />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{event.title}</p>
+                      <p className="text-xs text-muted-foreground">{event.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {event.status}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No recent activity</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
