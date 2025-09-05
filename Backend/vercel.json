@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "name": "reglex-ai-backend",
+  "builds": [
+    {
+      "src": "app.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/app.py"
+    }
+  ],
+  "env": {
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "GEMINI_API_KEY_2": "@gemini_api_key_2"
+  },
+  "functions": {
+    "app.py": {
+      "memory": 1024,
+      "maxDuration": 300
+    }
+  }
+}
