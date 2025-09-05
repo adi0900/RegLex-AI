@@ -402,9 +402,34 @@ If you encounter CORS or connection issues:
    # Test backend health
    curl https://reglex-backend.vercel.app/health
 
+   # Test debug endpoint
+   curl https://reglex-backend.vercel.app/debug
+
    # Test dashboard endpoint
    curl https://reglex-backend.vercel.app/api/dashboard/overview
    ```
+
+#### Common Vercel Deployment Issues
+
+**Issue: Backend shows as Offline**
+- ✅ **Solution:** Check Vercel function logs for import errors
+- ✅ **Debug:** Visit `/debug` endpoint to see Python environment
+- ✅ **Fix:** Ensure all dependencies are in requirements.txt
+
+**Issue: CORS Errors**
+- ✅ **Solution:** Set `FRONTEND_URL` environment variable in Vercel
+- ✅ **Format:** `https://your-frontend.vercel.app`
+- ✅ **Redeploy:** Required after environment variable changes
+
+**Issue: Import Errors**
+- ✅ **Solution:** Check pyproject.toml and requirements.txt
+- ✅ **Debug:** Look at Vercel build logs for missing dependencies
+- ✅ **Fix:** Add missing packages to requirements.txt
+
+**Issue: Function Timeout**
+- ✅ **Solution:** Increase maxDuration in vercel.json
+- ✅ **Current:** 30 seconds (may need increase for document processing)
+- ✅ **Alternative:** Optimize processing to complete faster
 
 #### Alternative Backend Hosting
 - **Railway:** Connect GitHub, auto-detects FastAPI

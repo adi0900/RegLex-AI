@@ -1,26 +1,28 @@
-dotenv
-chromadb
-openai
-google-generativeai
-anthropic
-mistralai
-python-dotenv
-transformers
-sentence-transformers
-requests
-pandas
-numpy
-pymupdf
-faiss-cpu
-matplotlib
-playwright
-huggingface_hub
-hf_xet
-seaborn
-plotly
-umap-learn
-python-multipart
-streamlit
+# Core dependencies
 fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+
+# AI and LLM dependencies
+google-generativeai
+openai
+anthropic
+
+# Document processing
+pymupdf
+requests
+
+# Data processing
+numpy
+pandas
+
+# Google Cloud
 google-cloud-storage==2.14.0
-uvicorn
+
+# Vector search (lightweight)
+faiss-cpu
+
+# Utilities
+transformers
+huggingface_hub

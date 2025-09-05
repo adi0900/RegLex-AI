@@ -1,26 +1,27 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "src/pipeline/run_pipeline.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
+  "buildCommand": "pip install -r requirements.txt",
+  "outputDirectory": ".",
+  "framework": null,
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30,
+      "memory": 1024
     }
-  ],
+  },
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "src/pipeline/run_pipeline.py"
+      "dest": "/api/index.py"
     }
   ],
-  "functions": {
-    "src/pipeline/run_pipeline.py": {
-      "maxDuration": 30
-    }
-  },
   "env": {
     "ENVIRONMENT": "production"
+  },
+  "build": {
+    "env": {
+      "PYTHONPATH": "."
+    }
   }
 }
